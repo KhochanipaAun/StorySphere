@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <!-- AppBar -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:fitsSystemWindows="true">
+
+        <com.google.android.material.appbar.CollapsingToolbarLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:layout_scrollFlags="scroll|enterAlways|enterAlwaysCollapsed"
+            app:contentScrim="@color/white"
+            android:background="@color/white"
+            android:fitsSystemWindows="true"
+            app:toolbarId="@+id/toolbar">
+
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:background="@color/white"
+                app:layout_collapseMode="pin"
+                app:navigationIcon="@drawable/round_arrow_back_ios_24"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Edit profile"
+                android:textSize="25sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.02"
+                android:textColor="@color/darkpurple"
+                android:layout_marginTop="15dp"
+                android:layout_marginLeft="60dp"/>
+        </com.google.android.material.appbar.CollapsingToolbarLayout>
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Main Content -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:padding="24dp">
+
+            <!-- Profile Image -->
+            <ImageView
+                android:id="@+id/img_profile"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
+                android:src="@drawable/ic_launcher_foreground"
+                android:layout_marginTop="16dp"
+                android:scaleType="centerCrop"
+                android:background="@drawable/circle_background" />
+
+            <TextView
+                android:id="@+id/tv_change_picture"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:clickable="true"
+                android:focusable="true"
+                android:onClick="onChangePictureClick"
+                android:text="Change profile picture"
+                android:textColor="@color/purple1"
+                android:textSize="14sp"
+                tools:ignore="TouchTargetSizeCheck" />
+
+            <!-- Email -->
+            <TextView
+                android:id="@+id/tv_email"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@android:color/black"
+                android:textSize="14sp"
+                android:layout_marginTop="4dp" />
+
+            <!-- Username label -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="username"
+                android:textColor="@color/purple1"
+                android:textSize="14sp"
+                android:layout_marginTop="24dp" />
+
+            <!-- Username Edit -->
+            <EditText
+                android:id="@+id/et_username"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/button_outline"
+                android:hint="User name"
+                android:padding="10dp"
+                android:textColor="@android:color/black"
+                tools:ignore="TouchTargetSizeCheck" />
+
+            <!-- Password label -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="change password"
+                android:textColor="@color/purple1"
+                android:textSize="14sp"
+                android:layout_marginTop="24dp" />
+
+            <!-- Old Password -->
+            <EditText
+                android:id="@+id/et_old_password"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/button_outline"
+                android:hint="Password"
+                android:inputType="textPassword"
+                android:padding="10dp"
+                tools:ignore="TouchTargetSizeCheck" />
+
+            <!-- New Password -->
+            <EditText
+                android:id="@+id/et_new_password"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/button_outline"
+                android:hint="New password"
+                android:inputType="textPassword"
+                android:padding="10dp"
+                tools:ignore="TouchTargetSizeCheck" />
+
+            <!-- Save Button -->
+            <Button
+                android:id="@+id/btn_save_change"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Save change"
+                android:onClick="save_change"
+                android:textStyle="bold"
+                android:textColor="@android:color/white"
+                android:layout_marginTop="32dp"
+                android:backgroundTint="@color/purple1" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

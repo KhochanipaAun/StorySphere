@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">storysphere_Appbar</string>
+    <string name="login">Log In</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="Forgotpassword">Forgot your password?</string>
+    <string name="Signup">SIGNUP</string>
+    <string name="Name">Name</string>
+    <string name="Show">Show</string>
+    <string name="newpassword">New Password</string>
+    <string name="changepassword">Change Password</string>
+    <string name="create">Create</string>
+    <string name="edit">Edit</string>
+</resources>
