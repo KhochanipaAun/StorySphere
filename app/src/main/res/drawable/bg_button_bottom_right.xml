@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- กดแล้วพื้นหลังม่วงเข้ม -->
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#A56BCF"/>
+            <corners android:bottomRightRadius="16dp" />
+        </shape>
+    </item>
+    <!-- พื้นหลังปกติ: ม่วงอ่อน -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#C59AD6"/>
+            <corners android:bottomRightRadius="16dp" />
+        </shape>
+    </item>
+</selector>

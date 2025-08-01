@@ -39,7 +39,7 @@ public class activity_edit_profile extends AppCompatActivity {
             cursor.close();
         }
 
-        // เพิ่มโค้ดนี้เพื่อให้ลูกศรย้อนกลับทำงาน
+        // เพื่อให้ลูกศรย้อนกลับทำงาน
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setNavigationOnClickListener(v -> {
             Intent intent = new Intent(activity_edit_profile.this, activity_profile.class);

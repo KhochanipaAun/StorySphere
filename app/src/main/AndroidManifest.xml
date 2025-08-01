@@ -14,6 +14,19 @@
         android:theme="@style/Theme.Storysphere_Appbar"
         tools:targetApi="31">
         <activity
+            android:name=".activity_upload_picture"
+            android:exported="false" />
+        <!-- ✅ เพิ่ม UploadPicture Activity -->
+        <activity
+            android:name=".UploadPicture"
+            android:exported="false" /> <!-- รายการ Activity เดิม -->
+        <activity
+            android:name=".AddNovelActivity"
+            android:exported="false" />
+        <activity
+            android:name=".Writing_Add_Episode3"
+            android:exported="false" />
+        <activity
             android:name=".activity_forgot_pass"
             android:exported="false" />
         <activity
@@ -51,7 +64,7 @@
             android:exported="false" />
         <activity
             android:name=".activity_signup"
-            android:exported="false" />
+            android:exported="false" /> <!-- Launcher Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true">

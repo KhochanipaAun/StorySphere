@@ -1,6 +1,6 @@
 package com.example.storysphere_appbar;
 
-import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
@@ -14,7 +14,6 @@ public class activity_sign_up extends AppCompatActivity {
     EditText edtName, edtEmail, edtPassword;
     Button bttLogin;
     TextView ClickLogin;
-    DBHelper dbHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,38 +26,28 @@ public class activity_sign_up extends AppCompatActivity {
         bttLogin = findViewById(R.id.bttLogin);
         ClickLogin = findViewById(R.id.ClickLogin);
 
-        dbHelper = new DBHelper(this);
-
         bttLogin.setOnClickListener(v -> {
-            String name = edtName.getText().toString().trim();
-            String email = edtEmail.getText().toString().trim();
-            String password = edtPassword.getText().toString().trim();
+            String name = edtName.getText().toString();
+            String email = edtEmail.getText().toString();
+            String password = edtPassword.getText().toString();
 
             if (name.isEmpty() || email.isEmpty() || password.isEmpty()) {
                 Toast.makeText(this, "กรุณากรอกข้อมูลให้ครบ", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // ตรวจสอบว่าอีเมลซ้ำหรือไม่
-            if (dbHelper.getUserByEmail(email).moveToFirst()) {
-                Toast.makeText(this, "อีเมลนี้ถูกใช้ไปแล้ว", Toast.LENGTH_SHORT).show();
-                return;
-            }
+            SharedPreferences prefs = getSharedPreferences("UserData", MODE_PRIVATE);
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putString("name", name);
+            editor.putString("email", email);
+            editor.putString("password", password);
+            editor.apply();
 
-            boolean inserted = dbHelper.insertUser(name, email, password);
-            if (inserted) {
-                Toast.makeText(this, "สมัครสมาชิกเรียบร้อย", Toast.LENGTH_SHORT).show();
-                // ไปหน้า Login หลังสมัครสำเร็จ
-                Intent intent = new Intent(activity_sign_up.this, MainActivity.class);
-                startActivity(intent);
-                finish();
-            } else {
-                Toast.makeText(this, "เกิดข้อผิดพลาดในการสมัครสมาชิก", Toast.LENGTH_SHORT).show();
-            }
+            Toast.makeText(this, "สมัครสมาชิกเรียบร้อย", Toast.LENGTH_SHORT).show();
+            finish(); // กลับไปหน้า Login
         });
 
         ClickLogin.setOnClickListener(v -> {
-            // กลับหน้า Login (MainActivity)
             finish();
         });
     }

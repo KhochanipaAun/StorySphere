@@ -5,7 +5,8 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ForgotPass">
+    android:background="@color/white"
+    tools:context=".activity_forgot_pass">
 
     <TextView
         android:id="@+id/textView6"
@@ -55,6 +56,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="416dp"
         android:text="@string/Show"
+        android:onClick="togglePasswordVisibility"
         android:textColor="@color/purple1"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.889"
@@ -96,6 +98,7 @@
         android:layout_marginStart="185dp"
         android:layout_marginTop="672dp"
         android:text="@string/login"
+        android:onClick="goBackToLogin"
         android:textColor="@color/purple1"
         android:textSize="17dp"
         app:layout_constraintEnd_toEndOf="parent"
