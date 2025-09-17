@@ -13,13 +13,35 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Storysphere_Appbar"
         tools:targetApi="31">
+
         <activity
-            android:name=".activity_upload_picture"
+            android:name=".activity_follow_writer"
             android:exported="false" />
-        <!-- ✅ เพิ่ม UploadPicture Activity -->
         <activity
-            android:name=".UploadPicture"
-            android:exported="false" /> <!-- รายการ Activity เดิม -->
+            android:name=".ReadingMainActivity"
+            android:exported="false" />
+        <activity
+            android:name=".view_comments_sheet"
+            android:exported="false" />
+        <activity
+            android:name=".item_episode_simple"
+            android:exported="false" />
+        <activity
+            android:name=".activity_episode"
+            android:exported="false" />
+        <activity
+            android:name=".CategoryListActivity"
+            android:exported="false" />
+        <activity
+            android:name=".UserActivity"
+            android:exported="false" />
+        <activity
+            android:name=".LibraryHistoryActivity"
+            android:exported="false" />
+        <activity
+            android:name=".HomeActivity"
+            android:exported="false"
+            tools:ignore="Instantiatable" />
         <activity
             android:name=".AddNovelActivity"
             android:exported="false" />
@@ -45,26 +67,11 @@
             android:name=".activity_writing"
             android:exported="false" />
         <activity
-            android:name=".MainActivity2"
-            android:exported="false" />
-        <activity
             android:name=".Writing_Add_Episode1"
             android:exported="false" />
         <activity
             android:name=".activity_writnig_edit_writting"
             android:exported="false" />
-        <activity
-            android:name=".activity_writting_add_EP1"
-            android:exported="false" />
-        <activity
-            android:name=".activity_writting_edit_EP1"
-            android:exported="false" />
-        <activity
-            android:name=".activity_forgotpass"
-            android:exported="false" />
-        <activity
-            android:name=".activity_signup"
-            android:exported="false" /> <!-- Launcher Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true">

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="36dp"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/bg_search_pill"
+    android:paddingHorizontal="12dp">
+
+    <!-- ไอคอนค้นหา -->
+    <ImageView
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:src="@drawable/ic_seach"
+        android:contentDescription="@string/search"
+        app:tint="@color/greyText" />
+
+    <!-- ช่องข้อความ -->
+    <EditText
+        android:id="@+id/etSearch"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="@null"
+        android:hint="@string/search"
+        android:textColor="@color/black"
+        android:textColorHint="@color/greyText"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:paddingHorizontal="8dp"
+        android:textSize="14sp"
+        android:imeOptions="actionSearch"
+        android:inputType="text" />
+</LinearLayout>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="180dp">
+
+    <ImageView
+        android:id="@+id/imgBanner"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:contentDescription="@string/app_name"
+        android:src="@drawable/ic_home" />
+
+    <!-- ปุ่ม more (ถ้าใช้) -->
+    <ImageView
+        android:id="@+id/btnBannerMore"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_gravity="end|top"
+        android:layout_margin="8dp"
+        android:tint="@android:color/white"
+        android:src="@drawable/overflow_menu_vertical_svgrepo_com"
+        tools:ignore="UseAppTint" />
+</FrameLayout>

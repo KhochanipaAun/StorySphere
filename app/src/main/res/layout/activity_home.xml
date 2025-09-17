@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white"
+    tools:context=".HomeActivity">
+
+    <!-- AppBar -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/white"
+        app:elevation="0dp"
+        android:theme="@style/ThemeOverlay.MaterialComponents.Light">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/white"
+            app:contentInsetStartWithNavigation="0dp"
+            app:contentInsetEndWithActions="0dp"
+            app:title=""
+            app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light">
+
+            <!-- คอนเทนเนอร์ภายใน Toolbar -->
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp">
+
+                <!-- Search pill -->
+                <include
+                    android:id="@+id/searchView_inline"
+                    layout="@layout/menu_action_search_pill2"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_marginEnd="8dp"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toStartOf="@id/ivProfile"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"/>
+
+                <!-- โปรไฟล์ -->
+                <ImageView
+                    android:id="@+id/ivProfile"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/user_circle_svgrepo_com"
+                    android:scaleType="centerCrop"
+                    android:background="@drawable/circle_background"
+                    android:contentDescription="profile"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"/>
+            </androidx.constraintlayout.widget.ConstraintLayout>
+        </androidx.appcompat.widget.Toolbar>
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- เนื้อหาเลื่อนยาว -->
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:id="@+id/content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="96dp">
+
+            <!-- Banner Slider (โค้งมุม + รูปตัวอย่าง) -->
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/sectionBanner"
+                android:layout_width="match_parent"
+                android:layout_height="180dp"
+                android:layout_marginTop="8dp"
+                android:clipToOutline="true"
+                android:background="@drawable/bg_banner_round">
+
+                <androidx.viewpager2.widget.ViewPager2
+                    android:id="@+id/bannerPager"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent" />
+
+                <!-- placeholder ให้เห็นภาพตอนยังไม่ต่ออแดปเตอร์ -->
+                <ImageView
+                    android:id="@+id/bannerPlaceholder"
+                    android:layout_width="0dp"
+                    android:layout_height="0dp"
+                    android:scaleType="centerCrop"
+                    app:layout_constraintTop_toTopOf="parent"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    tools:visibility="visible"
+                    android:visibility="gone"/>
+
+                <!-- จุดบอกหน้า -->
+                <LinearLayout
+                    android:id="@+id/dots"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:padding="6dp"
+                    android:background="@android:color/transparent"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"/>
+            </androidx.constraintlayout.widget.ConstraintLayout>
+
+            <!-- You may also like -->
+            <include
+                layout="@layout/row_section_header"
+                android:id="@+id/rowYouMayLike"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:tag="You may also like"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvYouMayLike"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:layout_marginTop="8dp"
+                android:clipToPadding="false"
+                android:paddingEnd="4dp"
+                tools:listitem="@layout/item_cover_square"/>
+
+            <!-- Genres -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Genres"
+                android:textStyle="bold"
+                android:textColor="@color/darkpurple"
+                android:textSize="16sp"
+                android:layout_marginTop="16dp"/>
+
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="3"
+                android:rowCount="2"
+                android:layout_marginTop="8dp"
+                android:alignmentMode="alignMargins"
+                android:rowOrderPreserved="false">
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipRomance"
+                    style="@style/Widget.MaterialComponents.Chip.Choice"
+                    android:layout_width="115dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="6dp"
+                    android:text="Romance"
+                    android:textAlignment="center"
+                    android:textColor="@color/white"
+                    android:onClick="openCategory"
+                    android:tag="romance"
+                    app:chipBackgroundColor="@color/purple1" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipDrama"
+                    style="@style/Widget.MaterialComponents.Chip.Choice"
+                    android:layout_width="128dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="6dp"
+                    android:text="Drama"
+                    android:textAlignment="center"
+                    android:textColor="@color/white"
+                    android:onClick="openCategory"
+                    android:tag="drama"
+                    app:chipBackgroundColor="@color/purple1" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipComedy"
+                    style="@style/Widget.MaterialComponents.Chip.Choice"
+                    android:layout_width="120dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="6dp"
+                    android:text="Comedy"
+                    android:textAlignment="center"
+                    android:textColor="@color/white"
+                    android:onClick="openCategory"
+                    android:tag="comedy"
+                    app:chipBackgroundColor="@color/purple1" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipFantasy"
+                    style="@style/Widget.MaterialComponents.Chip.Choice"
+                    android:layout_width="114dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="6dp"
+                    android:text="Fantasy"
+                    android:textAlignment="center"
+                    android:textColor="@color/white"
+                    android:onClick="openCategory"
+                    android:tag="fantasy"
+                    app:chipBackgroundColor="@color/purple1" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipScifi"
+                    style="@style/Widget.MaterialComponents.Chip.Choice"
+                    android:layout_width="128dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="6dp"
+                    android:text="Sci-fi"
+                    android:textAlignment="center"
+                    android:textColor="@color/white"
+                    android:onClick="openCategory"
+                    android:tag="sci-fi"
+                    app:chipBackgroundColor="@color/purple1"
+                    tools:ignore="OnClick" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipMystery"
+                    style="@style/Widget.MaterialComponents.Chip.Choice"
+                    android:layout_width="122dp"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="6dp"
+                    android:text="Mystery"
+                    android:textAlignment="center"
+                    android:textColor="@color/white"
+                    android:onClick="openCategory"
+                    android:tag="mystery"
+                    app:chipBackgroundColor="@color/purple1" />
+            </GridLayout>
+
+            <include
+                layout="@layout/row_section_header"
+                android:id="@+id/rowTopChart"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:tag="Top Chart"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvTopChart"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:nestedScrollingEnabled="false"
+                tools:listitem="@layout/item_top_chart_row"/>
+
+            <!-- Romance -->
+            <include
+                layout="@layout/row_section_header"
+                android:id="@+id/rowRomance"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:tag="Romance"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvRomance"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:layout_marginTop="8dp"
+                android:clipToPadding="false"
+                tools:listitem="@layout/item_cover_square"/>
+
+            <!-- Drama -->
+            <include
+                layout="@layout/row_section_header"
+                android:id="@+id/rowDrama"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:tag="Drama"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvDrama"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:layout_marginTop="8dp"
+                tools:listitem="@layout/item_cover_square"/>
+
+            <!-- Comedy -->
+            <include
+                layout="@layout/row_section_header"
+                android:id="@+id/rowComedy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:tag="Comedy"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvComedy"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:layout_marginTop="8dp"
+                tools:listitem="@layout/item_cover_square"/>
+
+            <!-- Fantasy -->
+            <include
+                layout="@layout/row_section_header"
+                android:id="@+id/rowFantasy"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:tag="Fantasy"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvFantasy"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:layout_marginTop="8dp"
+                tools:listitem="@layout/item_cover_square"/>
+
+            <!-- Sci-fi -->
+            <include
+                layout="@layout/row_section_header"
+                android:id="@+id/rowScifi"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:tag="Sci-fi"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvScifi"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:layout_marginTop="8dp"
+                tools:listitem="@layout/item_cover_square"/>
+
+            <!-- Mystery -->
+            <include
+                layout="@layout/row_section_header"
+                android:id="@+id/rowMystery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:tag="Mystery"/>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvMystery"
+                android:layout_width="match_parent"
+                android:layout_height="120dp"
+                android:layout_marginTop="8dp"
+                tools:listitem="@layout/item_cover_square"/>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+    <!-- Bottom Nav -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNav"
+        android:layout_width="match_parent"
+        android:layout_height="95dp"
+        android:layout_gravity="bottom"
+        android:background="@color/white"
+        app:menu="@menu/bottom_nav_menu"
+        app:itemIconTint="@color/purple1"
+        app:itemTextColor="@color/purple1"
+        app:labelVisibilityMode="labeled"/>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

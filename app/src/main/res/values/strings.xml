@@ -11,4 +11,9 @@
     <string name="changepassword">Change Password</string>
     <string name="create">Create</string>
     <string name="edit">Edit</string>
+    <string name="content_desc_profile">content_desc_profile</string>
+    <string name="search">Search</string>
+    <string name="profile">profile</string>
+    <string name="tab_library">Library</string>
+    <string name="tab_history">History</string>
 </resources>

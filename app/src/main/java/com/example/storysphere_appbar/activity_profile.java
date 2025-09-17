@@ -10,6 +10,8 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.android.material.appbar.MaterialToolbar;
+
 public class activity_profile extends AppCompatActivity {
 
     private TextView tvUsername, tvEmail;
@@ -22,34 +24,47 @@ public class activity_profile extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_profile);
 
+        dbHelper   = new DBHelper(this);
+        tvUsername = findViewById(R.id.tv_username);
+        tvEmail    = findViewById(R.id.tv_email);
+        imgProfile = findViewById(R.id.imageView); // ใช้ id ให้ตรงกับ XML
+
+        // รับ email จาก intent
         userEmail = getIntent().getStringExtra("email");
 
-        if (userEmail == null || userEmail.isEmpty()) {
-            Toast.makeText(this, "Email not provided", Toast.LENGTH_SHORT).show();
+        // Toolbar back
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        toolbar.setNavigationOnClickListener(v -> {
+            Intent intent = new Intent(activity_profile.this, HomeActivity.class);
+            if (userEmail != null && !userEmail.isEmpty()) {
+                intent.putExtra("email", userEmail);
+            }
+            startActivity(intent);
             finish();
-            return;
+        });
+
+        if (userEmail == null || userEmail.isEmpty()) {
+            // กรณีทดสอบ ยังไม่มี email
+            tvUsername.setText("Guest User");
+            tvEmail.setText("guest@example.com");
+            Toast.makeText(this, "No email provided - test mode", Toast.LENGTH_SHORT).show();
+            return; // ข้าม query DB
         }
 
-        dbHelper = new DBHelper(this);
-
-        tvUsername = findViewById(R.id.tv_username);
-        tvEmail = findViewById(R.id.tv_email);
-        imgProfile = findViewById(R.id.img_profile);
-
+        // ถ้ามี email → ใช้ข้อมูลจริงจาก DB
         tvEmail.setText(userEmail);
-
-        Cursor cursor = dbHelper.getUserByEmail(userEmail);
-        if (cursor != null && cursor.moveToFirst()) {
-            int index = cursor.getColumnIndex("username");
-            if (index != -1) {
-                String username = cursor.getString(index);
-                tvUsername.setText(username);
+        try (Cursor cursor = dbHelper.getUserByEmail(userEmail)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex("username");
+                if (index != -1) {
+                    String username = cursor.getString(index);
+                    tvUsername.setText(username);
+                } else {
+                    tvUsername.setText("No username found");
+                }
             } else {
-                tvUsername.setText("No username found");
+                Toast.makeText(this, "User not found", Toast.LENGTH_SHORT).show();
             }
-            cursor.close();
-        } else {
-            Toast.makeText(this, "User not found", Toast.LENGTH_SHORT).show();
         }
     }
 

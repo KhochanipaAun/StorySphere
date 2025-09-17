@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white"
+    tools:context=".SearchActivity">
+
+    <!-- เนื้อหาหลัก -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="16dp"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- ช่อง Search -->
+            <androidx.appcompat.widget.Toolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                android:background="@color/white"
+                app:navigationIcon="@drawable/round_arrow_back_ios_24"
+                app:title=""
+                app:contentInsetStartWithNavigation="0dp"
+                app:contentInsetEndWithActions="0dp">
+
+                <include
+                    layout="@layout/menu_action_search_pill"
+                    android:id="@+id/searchPill"
+                    android:layout_width="match_parent"
+                    android:layout_height="36dp"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginEnd="16dp"/>
+            </androidx.appcompat.widget.Toolbar>
+            <!-- ฟิลเตอร์แบบ CheckBox -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Filter by categories"
+                android:textStyle="bold"
+                android:textColor="@color/darkpurple"
+                android:textSize="14sp"
+                android:layout_marginTop="16dp"/>
+
+            <GridLayout
+                android:id="@+id/checkCategories"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="3"
+                android:orientation="horizontal"
+                android:alignmentMode="alignMargins"
+                android:useDefaultMargins="true"
+                android:layout_marginTop="8dp">
+
+                <CheckBox android:text="Romance" />
+                <CheckBox android:text="Fantasy" />
+                <CheckBox android:text="Drama" />
+                <CheckBox android:text="Sci-fi" />
+                <CheckBox android:text="Comedy" />
+                <CheckBox android:text="Mystery" />
+            </GridLayout>
+
+            <!-- ฟิลเตอร์แบบ Material Chip -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Filter by genres"
+                android:textStyle="bold"
+                android:textColor="@color/darkpurple"
+                android:textSize="14sp"
+                android:layout_marginTop="16dp"/>
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/chipGroupCategories"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:singleLine="false"
+                app:singleSelection="false"
+                app:chipSpacing="8dp"
+                android:layout_marginTop="8dp">
+
+                <com.google.android.material.chip.Chip
+                    style="@style/Widget.MaterialComponents.Chip.Filter"
+                    android:text="Romance"
+                    android:checkable="true"/>
+
+                <com.google.android.material.chip.Chip
+                    style="@style/Widget.MaterialComponents.Chip.Filter"
+                    android:text="Fantasy"
+                    android:checkable="true"/>
+
+                <com.google.android.material.chip.Chip
+                    style="@style/Widget.MaterialComponents.Chip.Filter"
+                    android:text="Drama"
+                    android:checkable="true"/>
+
+                <com.google.android.material.chip.Chip
+                    style="@style/Widget.MaterialComponents.Chip.Filter"
+                    android:text="Sci-fi"
+                    android:checkable="true"/>
+
+                <com.google.android.material.chip.Chip
+                    style="@style/Widget.MaterialComponents.Chip.Filter"
+                    android:text="Comedy"
+                    android:checkable="true"/>
+
+                <com.google.android.material.chip.Chip
+                    style="@style/Widget.MaterialComponents.Chip.Filter"
+                    android:text="Mystery"
+                    android:checkable="true"/>
+            </com.google.android.material.chip.ChipGroup>
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

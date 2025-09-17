@@ -11,23 +11,24 @@
         android:id="@+id/appbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@color/white"
-        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar">
+        android:fitsSystemWindows="true">
 
         <com.google.android.material.appbar.CollapsingToolbarLayout
+            android:id="@+id/collapsing_toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:toolbarId="@+id/toolbar"
+            app:layout_scrollFlags="scroll|enterAlways|enterAlwaysCollapsed"
+            app:contentScrim="@color/white"
             android:background="@color/white"
-            app:layout_scrollFlags="scroll|enterAlwaysCollapsed"
-            app:contentScrim="@color/white">
+            android:fitsSystemWindows="true">
 
-            <androidx.appcompat.widget.Toolbar
+            <com.google.android.material.appbar.MaterialToolbar
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:minHeight="?attr/actionBarSize"
+                android:layout_height="?attr/actionBarSize"
                 android:background="@color/white"
+                app:layout_collapseMode="pin"
                 app:navigationIcon="@drawable/round_arrow_back_ios_24" />
 
             <!-- Title TextView -->
@@ -39,7 +40,7 @@
                 android:textColor="@color/darkpurple"
                 android:textSize="24sp"
                 android:textStyle="bold"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="29dp"
                 android:layout_marginStart="72dp"
                 android:layout_gravity="center_vertical" />
         </com.google.android.material.appbar.CollapsingToolbarLayout>
@@ -89,11 +90,11 @@
 
                 <Spinner
                     android:id="@+id/spinnerTitle"
-                    android:layout_width="98dp"
+                    android:layout_width="128dp"
                     android:layout_height="match_parent"
                     android:layout_alignParentStart="true"
                     android:layout_marginStart="0dp"
-                    android:layout_marginEnd="18dp"
+                    android:layout_marginEnd="20dp"
                     android:layout_toStartOf="@+id/spinner_icon"
                     android:background="@android:color/transparent"
                     android:paddingStart="16dp"
@@ -188,5 +189,5 @@
                 android:textColor="#fff" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
-
+    <include layout="@layout/view_confirm_popup" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

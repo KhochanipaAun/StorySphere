@@ -1,6 +1,7 @@
 package com.example.storysphere_appbar;
 
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -37,6 +38,12 @@ public class WritingAdapter extends RecyclerView.Adapter<WritingAdapter.ViewHold
         holder.textTitle.setText(item.getTitle());
         holder.textDesc.setText(item.getTagline());  // ใช้ tagline แทนรายละเอียด
         holder.textAuthor.setText(item.getCategory() + " | " + item.getTag());
+
+        holder.itemView.setOnClickListener(v -> {
+            Intent intent = new Intent(context, Writing_Add_Episode3.class);
+            intent.putExtra("writing_id", item.getId());  // ส่ง ID ไป
+            context.startActivity(intent);
+        });
 
         // โหลดภาพจาก Uri ที่เก็บไว้ ถ้าไม่มีใช้ภาพ default
         if (item.getImagePath() != null && !item.getImagePath().isEmpty()) {

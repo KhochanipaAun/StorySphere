@@ -1,6 +1,9 @@
 package com.example.storysphere_appbar;
 
+import android.content.Intent;
+import android.database.Cursor;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.TextView;
@@ -11,6 +14,9 @@ import androidx.appcompat.widget.Toolbar;
 
 import jp.wasabeef.richeditor.RichEditor;
 
+import android.text.Html;
+import android.os.Build;
+
 public class AddNovelActivity extends AppCompatActivity {
 
     private EditText editTitle;
@@ -18,41 +24,71 @@ public class AddNovelActivity extends AppCompatActivity {
     private TextView btnSave;
     private ImageButton btnBack;
     private DBHelper dbHelper;
+    private androidx.appcompat.widget.Toolbar toolbar;
+
+    // อย่าเปลี่ยนชื่อตัวแปรเหล่านี้
+    private int writingId = -1;
+    private int episodeId = -1;
+    private String mode = "create";
 
     // ปุ่มจัดรูปแบบ
     private ImageButton btnBold, btnItalic, btnUnderline;
     private ImageButton btnAlignLeft, btnAlignCenter, btnAlignRight;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_novel);
 
-        // ตั้งค่า Toolbar
-        Toolbar toolbar = findViewById(R.id.toolbar);
+        // ===== Toolbar =====
+        toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayShowTitleEnabled(false); // ซ่อน "Home"
+        }
 
-        // ผูก View กับ ID
+        dbHelper = new DBHelper(this);
+        // กันพังถ้ายังไม่มีตาราง episodes
+        dbHelper.ensureEpisodesTable();
+
+        // ผูก View
         editTitle = findViewById(R.id.editTitle);
-        editor = findViewById(R.id.editor);
-        btnSave = findViewById(R.id.saveButton);
-        btnBack = findViewById(R.id.btnBack);
+        editor    = findViewById(R.id.editor);
+        btnSave   = findViewById(R.id.saveButton);
+        btnBack   = findViewById(R.id.btnBack);
+
+        // รับ mode + id
+        Intent it = getIntent();
+        if (it != null) {
+            String m = it.getStringExtra("mode");
+            if (m != null) mode = m;
+
+            if ("create".equals(mode)) {
+                writingId = it.getIntExtra("writing_id", -1);
+                Log.d("AddNovelActivity", "mode=create, writingId=" + writingId);
+            } else if ("edit".equals(mode)) {
+                episodeId = it.getIntExtra("episode_id", -1);
+                Log.d("AddNovelActivity", "mode=edit, episodeId=" + episodeId);
+                Episode ep = dbHelper.getEpisodeById(episodeId);
+                if (ep != null) {
+                    editTitle.setText(ep.title);
+                    editor.setHtml(ep.contentHtml);
+                }
+            }
+        }
 
         // ปุ่มจัดรูปแบบ
-        btnBold = findViewById(R.id.action_bold);
-        btnItalic = findViewById(R.id.action_italic);
-        btnUnderline = findViewById(R.id.action_underline);
-        btnAlignLeft = findViewById(R.id.action_align_left);
-        btnAlignCenter = findViewById(R.id.action_align_center);
+        btnBold       = findViewById(R.id.action_bold);
+        btnItalic     = findViewById(R.id.action_italic);
+        btnUnderline  = findViewById(R.id.action_underline);
+        btnAlignLeft  = findViewById(R.id.action_align_left);
+        btnAlignCenter= findViewById(R.id.action_align_center);
         btnAlignRight = findViewById(R.id.action_align_right);
 
-        // ตั้งค่า Editor
         editor.setEditorHeight(300);
         editor.setEditorFontSize(16);
         editor.setPlaceholder("เขียนเนื้อหานิยายที่นี่...");
 
-        // ฟังก์ชันจัดรูปแบบข้อความ
         btnBold.setOnClickListener(v -> editor.setBold());
         btnItalic.setOnClickListener(v -> editor.setItalic());
         btnUnderline.setOnClickListener(v -> editor.setUnderline());
@@ -60,29 +96,88 @@ public class AddNovelActivity extends AppCompatActivity {
         btnAlignCenter.setOnClickListener(v -> editor.setAlignCenter());
         btnAlignRight.setOnClickListener(v -> editor.setAlignRight());
 
-        // ปุ่มย้อนกลับ
         btnBack.setOnClickListener(v -> finish());
 
-        // ปุ่มบันทึก
         btnSave.setOnClickListener(v -> {
             String title = editTitle.getText().toString().trim();
-            String content = editor.getHtml();
 
-            if (title.isEmpty() || content == null || content.trim().isEmpty()) {
-                Toast.makeText(this, "กรุณากรอกหัวเรื่องและเนื้อหา", Toast.LENGTH_SHORT).show();
+            // เอา HTML จาก RichEditor ตรง ๆ (นี่คือสิ่งที่เราจะบันทึก)
+            String html = editor.getHtml();
+            if (html == null) html = "";
+
+            // ใช้ plain แค่ “ตรวจว่าง/ไม่ว่าง” เท่านั้น (ไม่บันทึก)
+            String plain;
+            if (android.os.Build.VERSION.SDK_INT >= 24) {
+                plain = android.text.Html.fromHtml(html, android.text.Html.FROM_HTML_MODE_LEGACY).toString().trim();
             } else {
-                // ✅ บันทึกข้อมูลลง SQLite
-                long result = dbHelper.insertWriting(
-                        title, "", "", "", "", content // tagline, tag, category, imagePath = เว้นไว้
-                );
+                plain = android.text.Html.fromHtml(html).toString().trim();
+            }
 
-                if (result != -1) {
-                    Toast.makeText(this, "บันทึกเรียบร้อย", Toast.LENGTH_SHORT).show();
-                    finish();
-                } else {
-                    Toast.makeText(this, "เกิดข้อผิดพลาดในการบันทึก", Toast.LENGTH_SHORT).show();
+            if (title.isEmpty() || plain.isEmpty()) {
+                Toast.makeText(this, "กรุณากรอกหัวเรื่องและเนื้อหา", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // ✅ บันทึก “html” ลงฐานข้อมูล (ให้แน่ใจว่า method เหล่านี้ map ไปคอลัมน์ content_html)
+            boolean ok;
+            if ("edit".equals(mode)) {
+                if (episodeId == -1) {
+                    Toast.makeText(this, "ไม่พบรหัสตอน (episode_id)", Toast.LENGTH_SHORT).show();
+                    return;
                 }
+                ok = dbHelper.updateEpisode(episodeId, title, html, /*isPrivate*/ false);
+            } else {
+                if (writingId == -1) {
+                    Toast.makeText(this, "ไม่พบรหัสเรื่อง (writing_id)", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                ok = dbHelper.insertEpisode(writingId, title, html, /*isPrivate*/ false);
+            }
+
+            if (ok) {
+                setResult(RESULT_OK);
+                Toast.makeText(this, "บันทึกเรียบร้อย", Toast.LENGTH_SHORT).show();
+                finish();
+            } else {
+                Toast.makeText(this, "บันทึกไม่สำเร็จ (ตรวจสอบว่า writing_id/episode_id ถูกต้อง)", Toast.LENGTH_LONG).show();
             }
         });
+    }
+
+    /**
+     * เช็คอย่างเร็ว ๆ ว่า TABLE_WRITINGS มีแถว id ที่กำลังจะผูกอยู่ไหม
+     * (ไม่เปลี่ยน DBHelper เพื่อให้ไฟล์นี้แก้ได้จบในที่เดียว)
+     */
+    private boolean writingExists(int id) {
+        Cursor c = null;
+        try {
+            c = dbHelper.getReadableDatabase().rawQuery(
+                    "SELECT 1 FROM " + DBHelper.TABLE_WRITINGS + " WHERE id=? LIMIT 1",
+                    new String[]{ String.valueOf(id) }
+            );
+            return c.moveToFirst();
+        } catch (Exception e) {
+            Log.e("AddNovelActivity", "writingExists check failed", e);
+            return false;
+        } finally {
+            if (c != null) c.close();
+        }
+    }
+
+
+    // กู้ค่า writingId กรณีไม่ได้ส่งมา: เอา id ล่าสุดจาก TABLE_WRITINGS
+    private int resolveWritingIdFallback() {
+        Cursor c = null;
+        try {
+            c = dbHelper.getReadableDatabase().rawQuery(
+                    "SELECT id FROM " + DBHelper.TABLE_WRITINGS + " ORDER BY id DESC LIMIT 1",
+                    null
+            );
+            if (c.moveToFirst()) return c.getInt(0);
+        } catch (Exception ignored) {
+        } finally {
+            if (c != null) c.close();
+        }
+        return -1;
     }
 }

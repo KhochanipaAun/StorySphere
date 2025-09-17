@@ -8,6 +8,7 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 
 public class activity_writnig_edit_writting extends AppCompatActivity {
 
@@ -21,6 +22,13 @@ public class activity_writnig_edit_writting extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_writnig_edit_writting);
 
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowTitleEnabled(false); // ปิดชื่อ
+        }
+
         edtEditTitle = findViewById(R.id.edtEditTitle);
         edtEditTagline = findViewById(R.id.edtEditTagline);
         bttEdit = findViewById(R.id.bttEdit);
@@ -32,6 +40,8 @@ public class activity_writnig_edit_writting extends AppCompatActivity {
             writingId = intent.getIntExtra("writing_id", -1);
             loadWritingData(writingId);
         }
+
+
 
         // บันทึกข้อมูลที่แก้ไข
         bttEdit.setOnClickListener(v -> {
@@ -46,7 +56,8 @@ public class activity_writnig_edit_writting extends AppCompatActivity {
             boolean updated = dbHelper.updateWriting(writingId, newTitle, newTagline);
             if (updated) {
                 Toast.makeText(this, "บันทึกสำเร็จ", Toast.LENGTH_SHORT).show();
-                finish(); // กลับหน้าก่อน
+                setResult(RESULT_OK);  // ✅ ใส่ตรงนี้ เพื่อแจ้งว่าแก้ไขสำเร็จ
+                finish();              // ✅ กลับไปยัง Writing_Add_Episode3_3
             } else {
                 Toast.makeText(this, "เกิดข้อผิดพลาด", Toast.LENGTH_SHORT).show();
             }
@@ -60,5 +71,13 @@ public class activity_writnig_edit_writting extends AppCompatActivity {
             edtEditTagline.setText(cursor.getString(cursor.getColumnIndexOrThrow("tagline")));
             cursor.close();
         }
+    }
+    @Override
+    public boolean onSupportNavigateUp() {
+        Intent intent = new Intent(this, Writing_Add_Episode3.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP); // ✅ กัน Stack ซ้อน
+        startActivity(intent);
+        finish(); // ปิดหน้านี้
+        return true;
     }
 }

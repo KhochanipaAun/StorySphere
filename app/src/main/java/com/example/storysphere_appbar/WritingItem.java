@@ -8,6 +8,8 @@ public class WritingItem {
     private String category;
     private String imagePath;
 
+
+
     // Constructor
     public WritingItem(int id, String title, String tagline, String tag, String category, String imagePath) {
         this.id = id;
@@ -67,4 +69,5 @@ public class WritingItem {
     public void setImagePath(String imagePath) {
         this.imagePath = imagePath;
     }
+
 }

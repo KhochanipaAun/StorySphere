@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.appcompat.widget.SearchView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/searchView"
+    android:layout_width="match_parent"
+    android:layout_height="36dp"
+    android:layout_marginStart="56dp"
+    android:background="@drawable/bg_search_pill"
+
+    app:iconifiedByDefault="false"
+    app:queryHint="@string/search"
+
+    app:searchIcon="@null"
+    app:searchHintIcon="@null"
+    app:closeIcon="@null"
+
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"/>

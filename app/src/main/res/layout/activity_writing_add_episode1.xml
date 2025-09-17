@@ -344,7 +344,7 @@
                         android:background="@android:color/transparent"
                         android:paddingStart="16dp"
                         android:paddingEnd="16dp"
-                        android:popupBackground="@color/purple1"
+                        android:popupBackground="@android:color/white"
                         android:textAlignment="center" />
 
                     <ImageView

@@ -4,7 +4,8 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@color/white">
 
     <!-- AppBar -->
     <com.google.android.material.appbar.AppBarLayout
@@ -20,6 +21,7 @@
             android:layout_marginTop="25dp"
             app:title=""
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
+
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -150,9 +152,9 @@
             <jp.wasabeef.richeditor.RichEditor
                 android:id="@+id/editor"
                 android:layout_width="match_parent"
-                android:layout_height="300dp"
-                android:background="@android:color/white"
-                android:layout_marginTop="8dp" />
+                android:layout_height="731dp"
+                android:layout_marginTop="8dp"
+                android:background="@android:color/white" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 

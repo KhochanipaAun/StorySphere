@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
 
     public void login(View view) {
         Intent intent;
-        intent = new Intent(this, Writing_Add_Episode1.class);
+        intent = new Intent(this,HomeActivity.class);
         startActivity(intent);
     }
 }
