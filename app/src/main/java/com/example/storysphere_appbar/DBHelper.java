@@ -23,15 +23,15 @@ public class DBHelper extends SQLiteOpenHelper {
     public static final String TABLE_BOOKMARKS       = "bookmarks";
     public static final String TABLE_HISTORY         = "reading_history";
     public static final String TABLE_FOLLOWS         = "follows";
-
-    // ใหม่: ประวัติถูกใจรายผู้ใช้ + คอมเมนต์
     public static final String TABLE_LIKES_LOG = "user_likes";
     public static final String TABLE_COMMENTS  = "comments";
 
     public static final String COL_LIKES = "likes_count";
 
-    // อัปเวอร์ชัน (สำคัญ เพื่อให้ onUpgrade วิ่งสร้างตารางใหม่ให้ฐานที่มีอยู่)
-    private static final int DATABASE_VERSION = 22;
+    public static final String COL_PROFILE_URI = "profile_image_uri";
+
+
+    private static final int DATABASE_VERSION = 23;
 
     public DBHelper(Context context) { super(context, DATABASE_NAME, null, DATABASE_VERSION); }
 
@@ -67,7 +67,10 @@ public class DBHelper extends SQLiteOpenHelper {
                     "content TEXT," +
                     "author_email TEXT," +
                     COL_LIKES + " INTEGER NOT NULL DEFAULT 0," +
-                    "views_count INTEGER NOT NULL DEFAULT 0)");
+                    "views_count INTEGER NOT NULL DEFAULT 0," +
+                    "FOREIGN KEY (author_email) REFERENCES " + TABLE_USERS + "(email) ON DELETE SET NULL" +
+                    ")");
+
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_likes ON " + TABLE_WRITINGS + "(" + COL_LIKES + ")");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_views ON " + TABLE_WRITINGS + "(views_count)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_author_email ON " + TABLE_WRITINGS + "(author_email)");
@@ -107,6 +110,16 @@ public class DBHelper extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_c_user_time ON " + TABLE_COMMENTS + "(user_email, created_at DESC)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_c_writing ON " + TABLE_COMMENTS + "(writing_id)");
 
+            db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS " + TABLE_USERS + " (" +
+                            "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                            "email TEXT UNIQUE," +
+                            "username TEXT," +
+                            "password TEXT," +
+                            "role TEXT," +
+                            COL_PROFILE_URI + " TEXT" +
+                            ");"
+            );
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
@@ -169,6 +182,49 @@ public class DBHelper extends SQLiteOpenHelper {
                 "FOREIGN KEY (episode_id) REFERENCES " + TABLE_EPISODES + "(episode_id) ON DELETE SET NULL)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_c_user_time ON " + TABLE_COMMENTS + "(user_email, created_at DESC)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_c_writing ON " + TABLE_COMMENTS + "(writing_id)");
+
+        if (oldVersion < 23) {
+            db.beginTransaction();
+            try {
+                // 1) สร้างตารางใหม่พร้อม FK
+                db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS writings_v23 (" +
+                                "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                                "  title TEXT," +
+                                "  tagline TEXT," +
+                                "  tag TEXT," +
+                                "  category TEXT," +
+                                "  image_path TEXT," +
+                                "  content TEXT," +
+                                "  author_email TEXT," +
+                                "  " + COL_LIKES + " INTEGER NOT NULL DEFAULT 0," +
+                                "  views_count INTEGER NOT NULL DEFAULT 0," +
+                                "  FOREIGN KEY (author_email) REFERENCES " + TABLE_USERS + "(email) ON DELETE SET NULL" +
+                                ")"
+                );
+
+                // 2) ย้ายข้อมูลจากตารางเดิม
+                db.execSQL(
+                        "INSERT INTO writings_v23 " +
+                                "(id, title, tagline, tag, category, image_path, content, author_email, " + COL_LIKES + ", views_count) " +
+                                "SELECT id, title, tagline, tag, category, image_path, content, author_email, " + COL_LIKES + ", IFNULL(views_count,0) " +
+                                "FROM " + TABLE_WRITINGS
+                );
+
+                // 3) ลบเก่า + เปลี่ยนชื่อใหม่
+                db.execSQL("DROP TABLE IF EXISTS " + TABLE_WRITINGS);
+                db.execSQL("ALTER TABLE writings_v23 RENAME TO " + TABLE_WRITINGS);
+
+                // 4) สร้างดัชนีกลับมา
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_likes ON " + TABLE_WRITINGS + "(" + COL_LIKES + ")");
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_views ON " + TABLE_WRITINGS + "(views_count)");
+                db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_author_email ON " + TABLE_WRITINGS + "(author_email)");
+
+                db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
+            }
+        }
     }
 
     public void onDowngrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -499,9 +555,12 @@ public class DBHelper extends SQLiteOpenHelper {
         cv.put("content", content);
 
         String authorEmail = getLoggedInUserEmail();
-        if (authorEmail == null || authorEmail.trim().isEmpty()) authorEmail = "guest";
+        if (authorEmail == null || authorEmail.trim().isEmpty()) {
+            Log.e("DBHelper", "insertWriting blocked: user not logged in");
+            return -1;
+        }
         if (hasColumn(db, TABLE_WRITINGS, "author_email")) {
-            cv.put("author_email", authorEmail);
+            cv.put("author_email", authorEmail.trim());
         }
         return db.insert(TABLE_WRITINGS, null, cv);
     }
@@ -1189,6 +1248,17 @@ public class DBHelper extends SQLiteOpenHelper {
         int idx = c.getColumnIndex(col);
         return idx >= 0 ? c.getString(idx) : null;
     }
+
+    /** นับจำนวนตอนทั้งหมดของนิยาย */
+    public int countEpisodesByWritingId(int writingId) {
+        SQLiteDatabase db = getReadableDatabase();
+        try (Cursor c = db.rawQuery(
+                "SELECT COUNT(*) FROM " + TABLE_EPISODES + " WHERE writing_id=?",
+                new String[]{ String.valueOf(writingId) })) {
+            return c.moveToFirst() ? c.getInt(0) : 0;
+        }
+    }
+
 
     // ======================== FEED ========================
     public static class EpisodeFeed {
