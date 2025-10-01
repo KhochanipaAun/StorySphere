@@ -3,7 +3,9 @@ package com.example.storysphere_appbar;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.database.Cursor;
-import android.graphics.drawable.GradientDrawable;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageView;
@@ -12,8 +14,10 @@ import android.widget.TextView;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.content.ContextCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
@@ -23,11 +27,12 @@ import java.util.List;
 public class ReadingMainActivity extends AppCompatActivity {
 
     public static final String EXTRA_WRITING_ID = "writing_id";
-    public static final String EXTRA_EPISODE_ID  = "episode_id";
+    public static final String EXTRA_EPISODE_ID = "episode_id";
+    public static final String ACTION_WRITING_CHANGED = "storysphere.ACTION_WRITING_CHANGED";
 
     private DBHelper db;
     private int writingId;
-    private androidx.recyclerview.widget.RecyclerView rvEpisodes;
+    private RecyclerView rvEpisodes;
     private boolean statsTouched = false;
 
     @Override
@@ -58,7 +63,7 @@ public class ReadingMainActivity extends AppCompatActivity {
         setupSocialBar(writingId);
 
         rvEpisodes = findViewById(R.id.recyclerViewEpisodes);
-        rvEpisodes.setLayoutManager(new androidx.recyclerview.widget.LinearLayoutManager(this));
+        rvEpisodes.setLayoutManager(new LinearLayoutManager(this));
         rvEpisodes.setHasFixedSize(false);
         List<Episode> eps = db.getEpisodesByWritingId(writingId);
         EpisodeReadingAdapter adp = new EpisodeReadingAdapter(eps, ep -> {
@@ -93,11 +98,12 @@ public class ReadingMainActivity extends AppCompatActivity {
             return false;
         });
 
-        // เพิ่มวิว + อัปเดตแสดงผลทันที (fallback 0)
+        // เพิ่มวิวครั้งแรกเมื่อเข้าหน้านี้ แล้วแจ้งรีลไทม์ให้ฝั่งซ้าย
         int newViews = db.addViewOnce(writingId);
         TextView tvEye = findViewById(R.id.tvEye);
         if (tvEye != null) tvEye.setText(String.valueOf(Math.max(0, newViews)));
         statsTouched = true;
+        broadcastChange(); // <<< แจ้งไปฝั่งซ้าย
     }
 
     private int pickLatestWritingId() {
@@ -109,8 +115,7 @@ public class ReadingMainActivity extends AppCompatActivity {
     }
 
     private void bindStoryHeader(int writingId) {
-        // --- ดึงค่าที่ต้องใช้ เก็บเป็นตัวแปรก่อนปิด cursor ---
-        String title = null, tagline = null, tagsCsv = null, authorEmail = null;
+        String title = null, tagline = null, tagsCsv = null, authorEmail = null, imagePath = null;
 
         Cursor cur = null;
         try {
@@ -120,16 +125,20 @@ public class ReadingMainActivity extends AppCompatActivity {
                 int idxTagline = cur.getColumnIndex("tagline");
                 int idxTags    = cur.getColumnIndex("tag");
                 int idxAuthor  = cur.getColumnIndex("author_email");
+                int idxImage   = cur.getColumnIndex("image_path");
 
                 if (idxTitle   >= 0) title       = cur.getString(idxTitle);
                 if (idxTagline >= 0) tagline     = cur.getString(idxTagline);
                 if (idxTags    >= 0) tagsCsv     = cur.getString(idxTags);
                 if (idxAuthor  >= 0) authorEmail = cur.getString(idxAuthor);
+                if (idxImage   >= 0) imagePath   = cur.getString(idxImage);
             }
         } finally { if (cur != null) cur.close(); }
 
-        // --- ใส่ Title / Tagline ---
+        // ใช้การ์ดเป็น scope หา view
         View card = findViewById(R.id.storyCard);
+
+        // Title / Tagline
         if (card != null) {
             TextView tvTitle   = card.findViewById(R.id.textTitle);
             TextView tvTagline = card.findViewById(R.id.textBlurb);
@@ -137,7 +146,32 @@ public class ReadingMainActivity extends AppCompatActivity {
             if (tvTagline != null && tagline != null) tvTagline.setText(tagline);
         }
 
-        // --- ชื่อผู้เขียนบนการ์ด: tvAuthorRight (อยู่ใน include storyCard) ---
+        // รูปปก: ImageView ภายใน item_story_reading (id = imageView)
+        if (card != null) {
+            ImageView cover = card.findViewById(R.id.imageView);
+            if (cover != null) {
+                try {
+                    if (imagePath != null && !imagePath.trim().isEmpty()) {
+                        if (imagePath.startsWith("content://")) {
+                            cover.setImageURI(Uri.parse(imagePath));
+                        } else {
+                            Bitmap bmp = BitmapFactory.decodeFile(imagePath);
+                            if (bmp != null) {
+                                cover.setImageBitmap(bmp);
+                            } else {
+                                cover.setImageResource(R.drawable.ic_launcher_foreground);
+                            }
+                        }
+                    } else {
+                        cover.setImageResource(R.drawable.ic_launcher_foreground);
+                    }
+                } catch (Exception e) {
+                    cover.setImageResource(R.drawable.ic_launcher_foreground);
+                }
+            }
+        }
+
+        // ผู้เขียน
         if (card != null) {
             TextView tvAuthor = card.findViewById(R.id.tvAuthorRight);
             if (tvAuthor != null) {
@@ -150,7 +184,7 @@ public class ReadingMainActivity extends AppCompatActivity {
                         authorName = (at > 0) ? authorEmail.substring(0, at) : authorEmail;
                     }
 
-                    final String passEmail = authorEmail; // for click
+                    final String passEmail = authorEmail;
                     tvAuthor.setOnClickListener(v -> {
                         Intent it = new Intent(this, activity_follow_writer.class);
                         it.putExtra(activity_follow_writer.EXTRA_EMAIL, passEmail);
@@ -158,24 +192,14 @@ public class ReadingMainActivity extends AppCompatActivity {
                     });
                 }
 
-                // ถ้าไม่มีข้อมูลจริง ให้โชว์ "Author" แทนชื่อแอป
                 if (authorName == null || authorName.trim().isEmpty()) authorName = "Author";
                 tvAuthor.setText(authorName);
             }
         }
 
-        // --- สร้างชิปแท็กตามเดิม ---
+        // แท็ก: ใช้ container ที่อยู่นอกการ์ด (activity_reading_main.xml)
         LinearLayout tagContainer = findViewById(R.id.tagContainer);
-        ImageView imgHome = findViewById(R.id.imgHome);
-        if (tagContainer != null && imgHome != null) {
-            ConstraintLayout.LayoutParams lp =
-                    (ConstraintLayout.LayoutParams) tagContainer.getLayoutParams();
-            lp.startToEnd = R.id.imgHome;
-            lp.topToTop = R.id.imgHome;
-            lp.bottomToBottom = R.id.imgHome;
-            lp.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID;
-            tagContainer.setLayoutParams(lp);
-
+        if (tagContainer != null) {
             tagContainer.removeAllViews();
             if (tagsCsv != null && !tagsCsv.trim().isEmpty()) {
                 for (String t : tagsCsv.split(",")) {
@@ -191,30 +215,24 @@ public class ReadingMainActivity extends AppCompatActivity {
         }
     }
 
-    /** Bookmark / Like / View – แสดง 0 ถ้ายังไม่มี */
     private void setupSocialBar(int writingId) {
+        // <<< ประกาศ view ให้ครบ >>>
         ImageView ivBookmark = findViewById(R.id.ivBookmark);
         TextView  tvBookmark = findViewById(R.id.tvBookmark);
         ImageView ivHeart    = findViewById(R.id.ivHeart);
         TextView  tvHeart    = findViewById(R.id.tvHeart);
         TextView  tvEye      = findViewById(R.id.tvEye);
 
-        // เดิม:
-        // String email = db.getLoggedInUserEmail();
-        // if (email == null || email.trim().isEmpty()) email = "guest";
+        final String logged = db.getLoggedInUserEmail();
+        final String userEmail = (logged == null || logged.trim().isEmpty()) ? "guest" : logged.trim();
 
-        // ใหม่: ทำให้เป็น final/effectively final
-        final String userEmail = (db.getLoggedInUserEmail() == null || db.getLoggedInUserEmail().trim().isEmpty())
-                ? "guest" : db.getLoggedInUserEmail().trim();
-
-        // BOOKMARK
+        // ----- BOOKMARK -----
         int bCount = Math.max(0, db.countBookmarks(writingId));
         if (tvBookmark != null) tvBookmark.setText(String.valueOf(bCount));
         boolean isBookmarked = db.isBookmarked(userEmail, writingId);
         if (ivBookmark != null) {
             ivBookmark.setImageResource(isBookmarked ? R.drawable.ic_bookmark_filled
                     : R.drawable.ic_bookmark_outline);
-
             ivBookmark.setOnClickListener(v -> {
                 boolean now = db.isBookmarked(userEmail, writingId);
                 boolean ok  = db.setBookmark(userEmail, writingId, !now);
@@ -224,24 +242,36 @@ public class ReadingMainActivity extends AppCompatActivity {
                     ivBookmark.setImageResource(!now ? R.drawable.ic_bookmark_filled
                             : R.drawable.ic_bookmark_outline);
                     statsTouched = true;
+                    broadcastChange();
                 }
             });
         }
 
-        // HEART
+        // ----- LIKE (บันทึกต่อผู้ใช้) -----
         if (ivHeart != null && tvHeart != null) {
             int likes = Math.max(0, db.getLikes(writingId));
             tvHeart.setText(String.valueOf(likes));
-            ivHeart.setImageResource(R.drawable.heart_svgrepo_com);
+
+            boolean liked = db.isUserLiked(userEmail, writingId);
+            ivHeart.setImageResource(liked ? R.drawable.ic_heart_filled
+                    : R.drawable.heart_svgrepo_com);
+
             ivHeart.setOnClickListener(v -> {
-                int newLikes = Math.max(0, db.addLikeOnce(writingId));
-                tvHeart.setText(String.valueOf(newLikes));
-                ivHeart.setImageResource(R.drawable.ic_heart_filled);
-                statsTouched = true;
+                boolean nowLiked = db.isUserLiked(userEmail, writingId);
+                // toggle แล้วอัปเดตทั้ง LOG และ COUNTER
+                boolean ok = db.setUserLike(userEmail, writingId, !nowLiked);
+                if (ok) {
+                    int newLikes = Math.max(0, db.getLikes(writingId));
+                    tvHeart.setText(String.valueOf(newLikes));
+                    ivHeart.setImageResource(!nowLiked ? R.drawable.ic_heart_filled
+                            : R.drawable.heart_svgrepo_com);
+                    statsTouched = true;
+                    broadcastChange();
+                }
             });
         }
 
-        // EYE
+
         if (tvEye != null) {
             tvEye.setText(String.valueOf(Math.max(0, db.getViews(writingId))));
         }
@@ -250,6 +280,7 @@ public class ReadingMainActivity extends AppCompatActivity {
     private void goBack() {
         if (statsTouched) {
             EventCenter.notifyChanged(this, writingId, "return");
+            broadcastChange(); // <<< กันเหนียวเวลาออกจากหน้านี้
         }
         finish();
     }
@@ -263,7 +294,8 @@ public class ReadingMainActivity extends AppCompatActivity {
         tv.setTextSize(12f);
         tv.setIncludeFontPadding(false);
         tv.setTextColor(ContextCompat.getColor(this, android.R.color.white));
-        GradientDrawable bg = new GradientDrawable();
+        android.graphics.drawable.GradientDrawable bg =
+                new android.graphics.drawable.GradientDrawable();
         bg.setColor(ContextCompat.getColor(this, R.color.purple1));
         bg.setCornerRadius(dp(20));
         tv.setBackground(bg);
@@ -272,4 +304,13 @@ public class ReadingMainActivity extends AppCompatActivity {
     }
 
     private int dp(int v) { return Math.round(getResources().getDisplayMetrics().density * v); }
+
+    // ---------- เพิ่มเมธอดบรอดแคสต์ให้หน้าอื่นอัปเดตเรียลไทม์ ----------
+    private void broadcastChange() {
+        LocalBroadcastManager.getInstance(this)
+                .sendBroadcast(
+                        new Intent(ACTION_WRITING_CHANGED)
+                                .putExtra(EXTRA_WRITING_ID, writingId)
+                );
+    }
 }
