@@ -17,6 +17,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import android.net.Uri;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.chip.Chip;
@@ -220,8 +221,12 @@ public class HomeActivity extends AppCompatActivity {
                 writingChangedReceiver,
                 new IntentFilter(EventCenter.ACTION_WRITING_CHANGED)
         );
-        // สำคัญที่สุด: กลับจาก ReadMain ให้โหลดอันดับล่าสุดเลย
+
+        // โหลดอันดับล่าสุด
         refreshTop3();
+
+        // ⬅️ โหลดรูปโปรไฟล์ทุกครั้งที่หน้า Home โผล่
+        loadProfileAvatar();
     }
 
     /** unregister receiver */
@@ -274,5 +279,34 @@ public class HomeActivity extends AppCompatActivity {
         Intent i = new Intent(this, CategoryListActivity.class);
         i.putExtra(CategoryListActivity.EXTRA_CATEGORY, category);
         startActivity(i);
+    }
+
+    private void loadProfileAvatar() {
+        ImageView avatar = ivProfile; // R.id.ivProfile ใน layout ของคุณ
+        if (avatar == null) return;
+
+        DBHelper db = new DBHelper(this);
+
+        // พยายามใช้อีเมลจาก session ใน DB ก่อน
+        String email = db.getLoggedInUserEmail();
+
+        // ถ้ายังไม่มี ให้ fallback เป็น SharedPreferences ("auth") ที่คุณใช้ตอนกดคลิก
+        if (email == null || email.trim().isEmpty()) {
+            email = getSharedPreferences("auth", MODE_PRIVATE).getString("email", null);
+        }
+
+        String uriStr = (email != null) ? db.getUserImageUri(email) : null;
+
+        if (uriStr != null && !uriStr.trim().isEmpty()) {
+            try {
+                avatar.setImageURI(Uri.parse(uriStr));
+            } catch (Exception e) {
+                // รูปพัง/URI ใช้ไม่ได้ → แสดงไอคอนเริ่มต้น
+                avatar.setImageResource(R.drawable.user_circle_svgrepo_com);
+            }
+        } else {
+            // ยังไม่มีรูป → ไอคอนเริ่มต้น
+            avatar.setImageResource(R.drawable.user_circle_svgrepo_com);
+        }
     }
 }
