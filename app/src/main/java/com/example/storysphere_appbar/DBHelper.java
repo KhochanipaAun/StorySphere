@@ -1469,5 +1469,33 @@ public class DBHelper extends SQLiteOpenHelper {
         }
         return out;
     }
+    // ดึงรายชื่อ username ที่ไม่ว่าง (unique + เรียงชื่อ)
+    public List<String> getAllUsernamesNonEmpty() {
+        ArrayList<String> list = new ArrayList<>();
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT DISTINCT username FROM " + TABLE_USERS + " " +
+                        "WHERE username IS NOT NULL AND TRIM(username) <> '' " +
+                        "ORDER BY LOWER(username) ASC", null)) {
+            while (c.moveToNext()) list.add(c.getString(0));
+        }
+        return list;
+    }
+
+    /** ดึงหมวดหมู่หนังสือ (category) ที่ไม่ว่าง/ไม่เป็น null แบบไม่ซ้ำ และเรียง A→Z */
+    public java.util.List<String> getAllCategoriesNonEmpty() {
+        java.util.ArrayList<String> list = new java.util.ArrayList<>();
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT DISTINCT TRIM(category) AS cat " +
+                        "FROM " + TABLE_WRITINGS + " " +
+                        "WHERE category IS NOT NULL AND TRIM(category) <> '' " +
+                        "ORDER BY LOWER(cat) ASC", null)) {
+            while (c.moveToNext()) {
+                list.add(c.getString(0));
+            }
+        }
+        return list;
+    }
+
+
 
 }
