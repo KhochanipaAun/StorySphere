@@ -5,7 +5,8 @@
 
     <!-- ✅ เพิ่มสิทธิ์ที่จำเป็นสำหรับเลือกภาพ -->
     <!-- Android 13+ -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"
+        tools:ignore="SelectedPhotoAccess" />
     <!-- ถ้าไม่อ่านวิดีโอ ตัด READ_MEDIA_VIDEO ออกได้เพื่อความสะอาด -->
     <!-- <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" /> -->
     <!-- Android 12 ลงไป -->
@@ -148,6 +149,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    </application>
 
+        <!-- Add the declaration for your new activity here -->
+        <activity android:name=".AdminBannerActivity" />
+
+    </application>
 </manifest>

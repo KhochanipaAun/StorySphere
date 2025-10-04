@@ -25,10 +25,14 @@ public class DBHelper extends SQLiteOpenHelper {
     public static final String TABLE_FOLLOWS         = "follows";
     public static final String TABLE_LIKES_LOG = "user_likes";
     public static final String TABLE_COMMENTS  = "comments";
+    public static final String TABLE_BANNERS = "banners";
+
 
     public static final String COL_LIKES = "likes_count";
 
     public static final String COL_PROFILE_URI = "profile_image_uri";
+
+
 
 
     private static final int DATABASE_VERSION = 23;
@@ -120,6 +124,16 @@ public class DBHelper extends SQLiteOpenHelper {
                             COL_PROFILE_URI + " TEXT" +
                             ");"
             );
+
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_BANNERS + " (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "image_path TEXT NOT NULL," +
+                    "title TEXT," +
+                    "deeplink TEXT," +
+                    "is_active INTEGER NOT NULL DEFAULT 1," +
+                    "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))" +
+                    ")");
+
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
@@ -152,6 +166,17 @@ public class DBHelper extends SQLiteOpenHelper {
             safeAddColumn(db, TABLE_WRITINGS, "author_email", "TEXT");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_author_email ON " + TABLE_WRITINGS + "(author_email)");
         }
+        if (oldVersion < 24) {  // bump DATABASE_VERSION to 24
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_BANNERS + " (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "image_path TEXT NOT NULL," +
+                    "title TEXT," +
+                    "deeplink TEXT," +
+                    "is_active INTEGER NOT NULL DEFAULT 1," +
+                    "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))" +
+                    ")");
+        }
+
 
         // safety net
         ensureEpisodesTable(db);
@@ -1494,6 +1519,40 @@ public class DBHelper extends SQLiteOpenHelper {
             }
         }
         return list;
+    }
+    public long insertBanner(String imagePath, @Nullable String title, @Nullable String deeplink, boolean active){
+        ContentValues cv = new ContentValues();
+        cv.put("image_path", imagePath);
+        cv.put("title", title);
+        cv.put("deeplink", deeplink);
+        cv.put("is_active", active ? 1 : 0);
+        return getWritableDatabase().insert(TABLE_BANNERS, null, cv);
+    }
+
+    public List<Banner> getActiveBanners(){
+        ArrayList<Banner> list = new ArrayList<>();
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT id, image_path, title, deeplink, is_active FROM " + TABLE_BANNERS +
+                        " WHERE is_active=1 ORDER BY id DESC", null)) {
+            while (c.moveToNext()){
+                Banner b = new Banner();
+                b.id = c.getInt(0);
+                b.imagePath = c.getString(1);
+                b.title = c.isNull(2) ? null : c.getString(2);
+                b.deeplink = c.isNull(3) ? null : c.getString(3);
+                b.active = c.getInt(4) == 1;
+                list.add(b);
+            }
+        }
+        return list;
+    }
+
+    public static class Banner {
+        public int id;
+        public String imagePath;   // URI string (content:// or file:// or https://)
+        public String title;       // optional
+        public String deeplink;    // optional (tap to open)
+        public boolean active;
     }
 
 
