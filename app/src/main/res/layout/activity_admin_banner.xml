@@ -6,25 +6,29 @@
         android:id="@+id/preview"
         android:layout_width="match_parent"
         android:layout_height="180dp"
-        android:scaleType="centerCrop"
-        android:background="@drawable/bg_banner_round"/>
+        android:scaleType="centerCrop" />
 
+    <EditText
+        android:id="@+id/edtTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Title (optional)" />
 
     <EditText
         android:id="@+id/edtDeeplink"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Deeplink / URL (optional)"/>
+        android:hint="Deeplink / URL (optional)" />
 
     <Button
         android:id="@+id/btnPick"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Pick Image"/>
+        android:text="Pick Image" />
 
     <Button
         android:id="@+id/btnSave"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Save Banner"/>
+        android:text="Save Banner" />
 </LinearLayout>

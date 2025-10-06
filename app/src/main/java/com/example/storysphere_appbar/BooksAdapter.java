@@ -21,8 +21,8 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.VH> {
         default void onDelete(WritingItem item, int position) {}
     }
 
-    private final List<WritingItem> full;
-    private final List<WritingItem> data;
+    private final List<WritingItem> full;   // ข้อมูลเต็ม
+    private final List<WritingItem> data;   // ข้อมูลที่แสดง (หลังกรอง)
     private final OnItemClick click;
 
     public BooksAdapter(List<WritingItem> items, OnItemClick click) {
@@ -47,9 +47,9 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.VH> {
 
         // ใช้ getters ทั้งหมด
         h.txtTitleBook.setText(safe(w.getTitle()));
-        h.txtPenName.setText(safe(w.getTagline())); // ปรับเป็น getter อื่นถ้า pen name อยู่ที่อื่น
+        h.txtPenName.setText(safe(w.getTagline())); // ถ้า pen name อยู่ฟิลด์อื่น ปรับตรงนี้
         h.txtTag.setText(safe(w.getTag()));
-        // โชว์สถานะ/หมวด หมายเหตุ: เดิม fix "Ongoing"
+        // เดิม fix "Ongoing" → โชว์ category แทน
         h.txtStatusBook.setText(safe(w.getCategory()));
 
         h.itemView.setOnClickListener(v -> { if (click != null) click.onClick(w); });
@@ -60,8 +60,13 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.VH> {
 
     @Override public int getItemCount() { return data.size(); }
 
-    @Override public long getItemId(int pos) { return data.get(pos).getId(); }
+    @Override public long getItemId(int pos) {
+        // ถ้า id อาจเป็น 0 ให้ fallback เป็น position เพื่อกัน crash กับ stableIds
+        long id = data.get(pos).getId();
+        return id != 0 ? id : pos;
+    }
 
+    /** กรองด้วย title/tagline/tag/category (case-insensitive) */
     public void filter(String q) {
         data.clear();
         if (q == null || q.trim().isEmpty()) {
@@ -76,6 +81,24 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.VH> {
                     data.add(w);
                 }
             }
+        }
+        notifyDataSetChanged();
+    }
+
+    /** รีเซ็ตฟิลเตอร์กลับมาแสดงทั้งหมด */
+    public void resetFilter() {
+        data.clear();
+        data.addAll(full);
+        notifyDataSetChanged();
+    }
+
+    /** อัปเดตข้อมูลทั้งชุด (เช่น หลังลบ/เพิ่ม) */
+    public void updateData(List<WritingItem> newItems) {
+        full.clear();
+        data.clear();
+        if (newItems != null) {
+            full.addAll(newItems);
+            data.addAll(newItems);
         }
         notifyDataSetChanged();
     }

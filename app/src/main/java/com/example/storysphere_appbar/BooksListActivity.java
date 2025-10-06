@@ -3,7 +3,14 @@ package com.example.storysphere_appbar;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.ImageView;
+import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -11,19 +18,16 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.appbar.MaterialToolbar;
 
-import android.widget.ArrayAdapter;
-import android.widget.AdapterView;
-import android.widget.ImageView;
-import android.widget.Spinner;
-
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class BooksListActivity extends AppCompatActivity {
 
     private RecyclerView recyclerView;
-    private SearchView searchView;            // @+id/searchViewBook
-    private Spinner spinnerBook;              // map ไปที่ @+id/spinnerUser ใน XML
+    private SearchView searchView;     // @+id/searchViewBook
+    private Spinner spinnerBook;       // map ไปที่ @+id/spinnerUser ใน XML
     private final List<String> categoryOpts = new ArrayList<>();
 
     private BooksAdapter adapter;
@@ -54,17 +58,15 @@ public class BooksListActivity extends AppCompatActivity {
         recyclerView.setAdapter(adapter);
 
         // ===== Spinner (spinnerBook): กรองตามหมวดหมู่ =====
-        // หมายเหตุ: XML ใช้ id "spinnerUser" อยู่แล้ว จับมาเป็นตัวแปร spinnerBook
+        // XML ใช้ id "spinnerUser" อยู่แล้ว จับมาเป็นตัวแปร spinnerBook
         spinnerBook = findViewById(R.id.spinnerUser);
 
         categoryOpts.clear();
         categoryOpts.add("All books");
-        categoryOpts.addAll(db.getAllCategoriesNonEmpty());   // ใช้เมธอดใหม่จาก DBHelper
+        categoryOpts.addAll(extractNonEmptyCategories(all)); // ดึงจากลิสต์ ไม่พึ่ง DBHelper เพิ่ม
 
         ArrayAdapter<String> catAdapter = new ArrayAdapter<>(
-                this,
-                android.R.layout.simple_spinner_item,
-                categoryOpts
+                this, android.R.layout.simple_spinner_item, categoryOpts
         );
         catAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerBook.setAdapter(catAdapter);
@@ -72,13 +74,10 @@ public class BooksListActivity extends AppCompatActivity {
         spinnerBook.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 if (position == 0) {
-                    // "All books" → โชว์ทั้งหมด
-                    // ถ้า BooksAdapter มีเมธอด reset ให้ใช้; ถ้าไม่มี ใช้ filter("") แทน
-                    tryResetOrClearFilter();
+                    tryResetOrClearFilter();  // โชว์ทั้งหมด
                 } else {
                     String selectedCat = categoryOpts.get(position);
-                    // กรองด้วยข้อความ (ให้ BooksAdapter.filter กรอง title/tagline/tag/category)
-                    adapter.filter(selectedCat);
+                    adapter.filter(selectedCat); // ใช้ filter เดิม ให้กรองด้วยข้อความ
                 }
             }
             @Override public void onNothingSelected(AdapterView<?> parent) { /* no-op */ }
@@ -111,16 +110,93 @@ public class BooksListActivity extends AppCompatActivity {
                 startActivity(i);
             });
         }
+
+        // ===== ลบหนังสือเมื่อกดปุ่มถังขยะในแต่ละแถว (ไม่แก้ BooksAdapter) =====
+        recyclerView.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
+            @Override public void onChildViewAttachedToWindow(@NonNull View itemView) {
+                ImageView del = itemView.findViewById(R.id.imgDelete);
+                if (del != null) {
+                    del.setOnClickListener(v -> {
+                        TextView tvTitle = itemView.findViewById(R.id.txtTitleBook);
+                        String title = tvTitle != null ? tvTitle.getText().toString().trim() : null;
+
+                        if (title == null || title.isEmpty()) {
+                            Toast.makeText(BooksListActivity.this, "ไม่พบชื่อเรื่องของแถวนั้น", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        int writingId = findWritingIdByTitle(title);
+                        if (writingId <= 0) {
+                            Toast.makeText(BooksListActivity.this, "หา id ของ \"" + title + "\" ไม่เจอ", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        new androidx.appcompat.app.AlertDialog.Builder(BooksListActivity.this)
+                                .setTitle("ลบหนังสือ")
+                                .setMessage("ต้องการลบเรื่อง: \"" + title + "\" ?")
+                                .setPositiveButton("ลบ", (d, w) -> {
+                                    boolean ok = db.deleteWriting(writingId);
+                                    if (ok) {
+                                        List<WritingItem> refreshed = db.getAllWritingItems();
+                                        try {
+                                            adapter.updateData(refreshed); // ถ้ามีเมธอดนี้
+                                        } catch (Throwable ignore) {
+                                            // ถ้าอะแดปเตอร์ไม่มี updateData: สร้างใหม่
+                                            adapter = new BooksAdapter(refreshed, item -> {
+                                                Intent it = new Intent(BooksListActivity.this, BookDetailActivity.class);
+                                                it.putExtra("book_id", item.getId());
+                                                startActivity(it);
+                                            });
+                                            recyclerView.setAdapter(adapter);
+                                        }
+                                        Toast.makeText(BooksListActivity.this, "ลบแล้ว", Toast.LENGTH_SHORT).show();
+                                    } else {
+                                        Toast.makeText(BooksListActivity.this, "ลบไม่สำเร็จ", Toast.LENGTH_SHORT).show();
+                                    }
+                                })
+                                .setNegativeButton("ยกเลิก", null)
+                                .show();
+                    });
+                }
+            }
+            @Override public void onChildViewDetachedFromWindow(@NonNull View itemView) {
+                ImageView del = itemView.findViewById(R.id.imgDelete);
+                if (del != null) del.setOnClickListener(null);
+            }
+        });
     }
 
     /** ถ้า BooksAdapter มีเมธอด resetFilter() ก็เรียกใช้, ถ้าไม่มีก็ fallback เป็น filter("") */
     private void tryResetOrClearFilter() {
         try {
-            // สะดวกถ้าในอะแดปเตอร์คุณมี resetFilter()
             BooksAdapter.class.getMethod("resetFilter").invoke(adapter);
         } catch (Exception ignore) {
-            // ไม่มี resetFilter → ใช้ filter("") ให้โชว์ทั้งหมด
             adapter.filter("");
         }
+    }
+
+    /** ดึงหมวดหมู่ที่ไม่ว่าง/ไม่ซ้ำ จากรายการหนังสือ */
+    private List<String> extractNonEmptyCategories(List<WritingItem> items) {
+        Set<String> set = new HashSet<>();
+        if (items != null) {
+            for (WritingItem w : items) {
+                if (w != null && w.getCategory() != null) {
+                    String c = w.getCategory().trim();
+                    if (!c.isEmpty()) set.add(c);
+                }
+            }
+        }
+        return new ArrayList<>(set);
+    }
+
+    /** หา id จาก title (วิธีง่าย—ระวังกรณีชื่อซ้ำ) */
+    private int findWritingIdByTitle(String title) {
+        List<WritingItem> all = db.getAllWritingItems();
+        for (WritingItem w : all) {
+            if (w != null && w.getTitle() != null && w.getTitle().equals(title)) {
+                return w.getId();
+            }
+        }
+        return -1;
     }
 }

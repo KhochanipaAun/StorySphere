@@ -8,7 +8,10 @@ import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.SearchView;
 import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -16,7 +19,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.appbar.MaterialToolbar;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class UserListActivity extends AppCompatActivity {
 
@@ -62,12 +67,12 @@ public class UserListActivity extends AppCompatActivity {
         });
         recyclerView.setAdapter(adapter);
 
-        // ========= Spinner (ทางเลือก A): ดึงเฉพาะ username ที่ไม่ว่าง =========
+        // ========= Spinner: ดึงชื่อจาก fullList (ไม่ใช้เมธอด DBHelper เพิ่มเติม) =========
         spinnerUser = findViewById(R.id.spinnerUser);
 
         nameOptions.clear();
-        nameOptions.add("All users");                       // ตัวเลือกแสดงทั้งหมด
-        nameOptions.addAll(db.getAllUsernamesNonEmpty());   // <-- เมธอดใหม่ใน DBHelper
+        nameOptions.add("All users");
+        nameOptions.addAll(extractNonEmptyUsernames(fullList)); // จากลิสต์ปัจจุบัน
 
         ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(
                 this, android.R.layout.simple_spinner_item, nameOptions
@@ -78,10 +83,12 @@ public class UserListActivity extends AppCompatActivity {
         spinnerUser.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 if (position == 0) {
-                    adapter.resetFilter(); // แสดงทั้งหมด
+                    // แสดงทั้งหมด
+                    adapter.filter(""); // เคลียร์ฟิลเตอร์
                 } else {
                     String selected = nameOptions.get(position);
-                    adapter.filterBySpinnerSelection(selected); // exact -> ไม่เจอค่อย contains
+                    // ใช้ฟิลเตอร์เดิม (ค้นใน username/display/email/code แบบ contains)
+                    adapter.filter(selected);
                 }
             }
             @Override public void onNothingSelected(AdapterView<?> parent) { /* no-op */ }
@@ -92,7 +99,7 @@ public class UserListActivity extends AppCompatActivity {
             searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
                 @Override public boolean onQueryTextSubmit(String query) { return false; }
                 @Override public boolean onQueryTextChange(String newText) {
-                    adapter.filter(newText);  // ทำงานร่วมกับตัวกรอง spinner ได้
+                    adapter.filter(newText == null ? "" : newText);
                     return true;
                 }
             });
@@ -107,5 +114,55 @@ public class UserListActivity extends AppCompatActivity {
                 startActivity(i);
             });
         }
+
+        // ========= ลบผู้ใช้: ผูกคลิกให้ปุ่มถังขยะในแต่ละแถว =========
+        recyclerView.addOnChildAttachStateChangeListener(new RecyclerView.OnChildAttachStateChangeListener() {
+            @Override public void onChildViewAttachedToWindow(@NonNull View itemView) {
+                ImageView del = itemView.findViewById(R.id.imgDelete);
+                if (del != null) {
+                    del.setOnClickListener(v -> {
+                        TextView tvEmail = itemView.findViewById(R.id.txtEmailUser);
+                        String email = tvEmail != null ? tvEmail.getText().toString().trim() : null;
+
+                        if (email == null || email.isEmpty()) {
+                            Toast.makeText(UserListActivity.this, "ไม่พบอีเมลของผู้ใช้แถวนี้", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        new androidx.appcompat.app.AlertDialog.Builder(UserListActivity.this)
+                                .setTitle("ลบผู้ใช้")
+                                .setMessage("ต้องการลบผู้ใช้: " + email + " ?")
+                                .setPositiveButton("ลบ", (d, w) -> {
+                                    boolean ok = db.deleteUser(email);
+                                    if (ok) {
+                                        List<User> refreshed = db.getAllUsers();
+                                        adapter.updateData(refreshed);
+                                        Toast.makeText(UserListActivity.this, "ลบแล้ว", Toast.LENGTH_SHORT).show();
+                                    } else {
+                                        Toast.makeText(UserListActivity.this, "ลบไม่สำเร็จ", Toast.LENGTH_SHORT).show();
+                                    }
+                                })
+                                .setNegativeButton("ยกเลิก", null)
+                                .show();
+                    });
+                }
+            }
+            @Override public void onChildViewDetachedFromWindow(@NonNull View itemView) {
+                ImageView del = itemView.findViewById(R.id.imgDelete);
+                if (del != null) del.setOnClickListener(null);
+            }
+        });
+    }
+
+    /** ดึงรายการ username ที่ไม่ว่าง/ไม่ซ้ำ จากลิสต์ผู้ใช้ */
+    private List<String> extractNonEmptyUsernames(List<User> users) {
+        Set<String> set = new HashSet<>();
+        for (User u : users) {
+            if (u != null && u.username != null) {
+                String name = u.username.trim();
+                if (!name.isEmpty()) set.add(name);
+            }
+        }
+        return new ArrayList<>(set);
     }
 }
