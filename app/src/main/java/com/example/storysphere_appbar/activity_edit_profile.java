@@ -110,7 +110,7 @@ public class activity_edit_profile extends AppCompatActivity {
             if (uri != null) {
                 final int takeFlags = data.getFlags()
                         & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                try { getContentResolver().takePersistableUriPermission(uri, takeFlags); } catch (Exception ignore) {}
+                try { getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignore) {}
 
                 imgProfileEdit.setImageURI(uri);
 

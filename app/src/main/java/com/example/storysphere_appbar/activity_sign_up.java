@@ -68,7 +68,13 @@ public class activity_sign_up extends AppCompatActivity {
             boolean inserted = dbHelper.insertUser(name, email, password);
             if (inserted) {
                 Toast.makeText(this, "สมัครสมาชิกเรียบร้อย", Toast.LENGTH_SHORT).show();
-                Intent intent = new Intent(activity_sign_up.this, MainActivity.class);
+
+                // ✅ บันทึก session ของผู้ใช้ที่เพิ่งสมัคร
+                dbHelper.saveLoginSession(email);
+
+                // ✅ ไปหน้า HomeActivity และเคลียร์ back stack
+                Intent intent = new Intent(activity_sign_up.this, HomeActivity.class);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 startActivity(intent);
                 finish();
             } else {

@@ -152,6 +152,10 @@
 
         <!-- Add the declaration for your new activity here -->
         <activity android:name=".AdminBannerActivity" />
+        <activity
+            android:name=".AdminReportsActivity"
+            android:parentActivityName=".AdminPanelActivity" />
+
 
     </application>
 </manifest>

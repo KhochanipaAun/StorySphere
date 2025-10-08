@@ -1,6 +1,5 @@
 package com.example.storysphere_appbar;
 
-import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.database.Cursor;
 import android.os.Bundle;
@@ -23,11 +22,10 @@ public class MainActivity extends AppCompatActivity {
     private DBHelper dbHelper;
     private boolean isPasswordVisible = false;
 
-    // Hardcoded admin (ทดสอบเท่านั้น)
+    // Hardcoded admin (สำหรับทดสอบ)
     private static final String HARDCODED_ADMIN_EMAIL = "storysphere63@gmail.com";
     private static final String HARDCODED_ADMIN_PASSWORD = "Storysphere987";
 
-    @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -35,11 +33,11 @@ public class MainActivity extends AppCompatActivity {
 
         dbHelper = new DBHelper(this);
 
-        // ใช้ session ใน DB เท่านั้น (ไม่มี SharedPreferences แล้ว)
+        // ===== Auto-redirect ถ้ามี session ค้าง =====
         String loggedInEmail = dbHelper.getLoggedInUserEmail();
         if (loggedInEmail != null && !loggedInEmail.isEmpty()) {
             String userRole = dbHelper.getUserRole(loggedInEmail);
-            Log.d("MainActivity", "Auto redirect: " + loggedInEmail + " role=" + userRole);
+            if (userRole == null || userRole.trim().isEmpty()) userRole = "user";
             navigateUserBasedOnRole(loggedInEmail, userRole);
             return;
         }
@@ -53,10 +51,16 @@ public class MainActivity extends AppCompatActivity {
         txtShowPassword = findViewById(R.id.txtShowPass);
 
         bttLogin.setOnClickListener(v -> loginUser());
-        ClickSignUp.setOnClickListener(v ->
-                startActivity(new Intent(MainActivity.this, activity_sign_up.class)));
+
+        // ไปหน้า SignUp (กัน session ค้าง)
+        ClickSignUp.setOnClickListener(v -> {
+            dbHelper.clearLoginSession();
+            startActivity(new Intent(MainActivity.this, activity_sign_up.class));
+        });
+
         Forgotpass.setOnClickListener(v ->
                 startActivity(new Intent(MainActivity.this, activity_forgot_pass.class)));
+
         txtShowPassword.setOnClickListener(v -> togglePasswordVisibility());
     }
 
@@ -84,14 +88,9 @@ public class MainActivity extends AppCompatActivity {
                 c = dbHelper.getUserByEmail(email);
                 if (c != null && c.moveToFirst()) {
                     String storedPassword = c.getString(c.getColumnIndexOrThrow("password"));
-                    ok = password.equals(storedPassword); // TODO: เปลี่ยนเป็น hashing+salt ก่อนขึ้น production
-                    int idxRole;
-                    try {
-                        idxRole = c.getColumnIndexOrThrow("role");
-                        role = c.getString(idxRole);
-                    } catch (Exception ignore) {
-                        role = null; // ถ้าไม่มีคอลัมน์ role เดี๋ยวไปดึงด้วยเมธอด dbHelper ข้างล่าง
-                    }
+                    ok = password.equals(storedPassword); // (โปรดเปลี่ยนเป็น hashing ก่อน production)
+                    int idxRole = c.getColumnIndex("role");
+                    role = (idxRole >= 0) ? c.getString(idxRole) : null;
                 } else {
                     Log.d("MainActivity", "User not found: " + email);
                 }
@@ -99,9 +98,7 @@ public class MainActivity extends AppCompatActivity {
                 Log.e("MainActivity", "Cursor error", e);
                 ok = false;
             } finally {
-                if (c != null && !c.isClosed()) {
-                    try { c.close(); } catch (Exception ignore) {}
-                }
+                if (c != null) try { c.close(); } catch (Exception ignore) {}
             }
 
             if (ok && (role == null || role.isEmpty())) {
@@ -112,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
         if (ok) {
             Toast.makeText(this, "เข้าสู่ระบบสำเร็จ!", Toast.LENGTH_SHORT).show();
 
-            // ensure admin record ใน DB (ไม่เปลี่ยนชื่อตัวแปรของคุณ)
+            // ensure admin record ใน DB (เฉพาะตอนเข้าด้วยอีเมล admin)
             if (email.equals(HARDCODED_ADMIN_EMAIL)) {
                 try {
                     if (!dbHelper.checkEmailExists(email)) {
@@ -125,9 +122,10 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            // บันทึก session ลง DB เท่านั้น
+            // บันทึก session
             dbHelper.saveLoginSession(email);
 
+            // นำทางตาม role
             navigateUserBasedOnRole(email, role);
         } else {
             Toast.makeText(this, "อีเมลหรือรหัสผ่านไม่ถูกต้อง", Toast.LENGTH_SHORT).show();
@@ -135,15 +133,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void navigateUserBasedOnRole(String email, String role) {
-        Intent intent;
-        Log.d("MainActivity", "Navigate with role=" + role);
-        if ("admin".equalsIgnoreCase(role)) {
-            Toast.makeText(this, "Welcome Admin!", Toast.LENGTH_SHORT).show();
-            // ใช้หน้าเดียวกับของเพื่อน
-            intent = new Intent(MainActivity.this, AdminPanelActivity.class);
-        } else {
-            intent = new Intent(MainActivity.this, HomeActivity.class);
-        }
+        if (role == null || role.trim().isEmpty()) role = "user";
+        Intent intent = "admin".equalsIgnoreCase(role)
+                ? new Intent(MainActivity.this, AdminPanelActivity.class)
+                : new Intent(MainActivity.this, HomeActivity.class);
+
         intent.putExtra("email", email);
         intent.putExtra("role", role);
         startActivity(intent);
@@ -153,10 +147,10 @@ public class MainActivity extends AppCompatActivity {
     private void togglePasswordVisibility() {
         if (isPasswordVisible) {
             edtPassword.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-            txtShowPassword.setText("Show"); // หรือใช้ R.string.Show ถ้ามีใน strings.xml
+            txtShowPassword.setText("Show");
         } else {
             edtPassword.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD);
-            txtShowPassword.setText("Hide"); // หรือใช้ R.string.Hide
+            txtShowPassword.setText("Hide");
         }
         edtPassword.setSelection(edtPassword.getText().length());
         isPasswordVisible = !isPasswordVisible;

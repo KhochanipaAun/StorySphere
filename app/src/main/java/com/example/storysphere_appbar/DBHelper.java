@@ -27,15 +27,21 @@ public class DBHelper extends SQLiteOpenHelper {
     public static final String TABLE_COMMENTS  = "comments";
     public static final String TABLE_BANNERS = "banners";
 
+    // ใหม่
+    public static final String TABLE_REPORTS = "reports";
+    public static final String TABLE_NOTIFICATIONS   = "notifications";
 
     public static final String COL_LIKES = "likes_count";
-
     public static final String COL_PROFILE_URI = "profile_image_uri";
 
+    // users new columns
+    public static final String COL_IS_BANNED = "is_banned";
+    public static final String COL_BAN_REASON = "ban_reason";
 
 
 
-    private static final int DATABASE_VERSION = 23;
+    private static final int DATABASE_VERSION = 25;
+
 
     public DBHelper(Context context) { super(context, DATABASE_NAME, null, DATABASE_VERSION); }
 
@@ -46,7 +52,6 @@ public class DBHelper extends SQLiteOpenHelper {
     }
 
     // ======================== CREATE ========================
-    @Override
     public void onCreate(SQLiteDatabase db) {
         db.beginTransaction();
         try {
@@ -57,7 +62,10 @@ public class DBHelper extends SQLiteOpenHelper {
                     "username TEXT," +
                     "password TEXT," +
                     "image_uri TEXT," +
-                    "role TEXT DEFAULT 'user'" +
+                    "role TEXT DEFAULT 'user'," +
+                    COL_PROFILE_URI + " TEXT," +
+                    COL_IS_BANNED + " INTEGER NOT NULL DEFAULT 0," +
+                    COL_BAN_REASON + " TEXT" +
                     ")");
 
             // writings
@@ -74,7 +82,6 @@ public class DBHelper extends SQLiteOpenHelper {
                     "views_count INTEGER NOT NULL DEFAULT 0," +
                     "FOREIGN KEY (author_email) REFERENCES " + TABLE_USERS + "(email) ON DELETE SET NULL" +
                     ")");
-
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_likes ON " + TABLE_WRITINGS + "(" + COL_LIKES + ")");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_views ON " + TABLE_WRITINGS + "(views_count)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_author_email ON " + TABLE_WRITINGS + "(author_email)");
@@ -114,17 +121,7 @@ public class DBHelper extends SQLiteOpenHelper {
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_c_user_time ON " + TABLE_COMMENTS + "(user_email, created_at DESC)");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_c_writing ON " + TABLE_COMMENTS + "(writing_id)");
 
-            db.execSQL(
-                    "CREATE TABLE IF NOT EXISTS " + TABLE_USERS + " (" +
-                            "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                            "email TEXT UNIQUE," +
-                            "username TEXT," +
-                            "password TEXT," +
-                            "role TEXT," +
-                            COL_PROFILE_URI + " TEXT" +
-                            ");"
-            );
-
+            // banners
             db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_BANNERS + " (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                     "image_path TEXT NOT NULL," +
@@ -134,13 +131,44 @@ public class DBHelper extends SQLiteOpenHelper {
                     "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))" +
                     ")");
 
+// reports (เก็บรีพอร์ตคอมเมนต์/งานเขียน)
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_REPORTS + " (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "comment_id INTEGER," +                 // อ้างถึง comments.id (ถ้ามี)
+                    "writing_id INTEGER," +                 // อ้างถึง writings.id (ทางเลือก)
+                    "reporter_email TEXT NOT NULL," +
+                    "reason TEXT," +
+                    "status TEXT NOT NULL DEFAULT 'OPEN'," +// OPEN / RESOLVED
+                    "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))," +
+                    "resolved_at INTEGER," +
+                    "moderator_note TEXT," +
+                    "FOREIGN KEY (comment_id) REFERENCES " + TABLE_COMMENTS + "(id) ON DELETE CASCADE," +
+                    "FOREIGN KEY (writing_id) REFERENCES " + TABLE_WRITINGS + "(id) ON DELETE CASCADE" +
+                    ")");
+
+
+            // notifications
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_NOTIFICATIONS + " (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "user_email TEXT NOT NULL," +     // ผู้รับ
+                    "type TEXT NOT NULL," +           // FOLLOW / NEW_EPISODE / SYSTEM
+                    "title TEXT," +
+                    "message TEXT," +
+                    "payload_json TEXT," +
+                    "created_at INTEGER NOT NULL," +
+                    "read_at INTEGER" +
+                    ")");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_notif_user_time ON " + TABLE_NOTIFICATIONS + "(user_email, created_at DESC)");
+
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
 
+
     // ======================== UPGRADE ========================
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        // (ของเดิม) migrations เดิมคงไว้…
         if (oldVersion < 3)  db.execSQL("ALTER TABLE " + TABLE_WRITINGS + " ADD COLUMN content TEXT");
         if (oldVersion < 4)  db.execSQL("ALTER TABLE " + TABLE_USERS + " ADD COLUMN image_uri TEXT");
         if (oldVersion < 5) {
@@ -166,7 +194,8 @@ public class DBHelper extends SQLiteOpenHelper {
             safeAddColumn(db, TABLE_WRITINGS, "author_email", "TEXT");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_author_email ON " + TABLE_WRITINGS + "(author_email)");
         }
-        if (oldVersion < 24) {  // bump DATABASE_VERSION to 24
+
+        if (oldVersion < 24) {
             db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_BANNERS + " (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                     "image_path TEXT NOT NULL," +
@@ -175,16 +204,11 @@ public class DBHelper extends SQLiteOpenHelper {
                     "is_active INTEGER NOT NULL DEFAULT 1," +
                     "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))" +
                     ")");
+
+
         }
 
-
-        // safety net
-        ensureEpisodesTable(db);
-        ensureBookmarksTable(db);
-        ensureHistoryTable(db);
-        ensureFollowsTable(db);
-
-        // likes log
+        // likes log & comments (safety)
         db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_LIKES_LOG + " (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "user_email TEXT NOT NULL," +
@@ -195,7 +219,6 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_ul_user_time ON " + TABLE_LIKES_LOG + "(user_email, created_at DESC)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_ul_writing ON " + TABLE_LIKES_LOG + "(writing_id)");
 
-        // comments
         db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_COMMENTS + " (" +
                 "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "user_email TEXT NOT NULL," +
@@ -211,7 +234,6 @@ public class DBHelper extends SQLiteOpenHelper {
         if (oldVersion < 23) {
             db.beginTransaction();
             try {
-                // 1) สร้างตารางใหม่พร้อม FK
                 db.execSQL(
                         "CREATE TABLE IF NOT EXISTS writings_v23 (" +
                                 "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -227,29 +249,59 @@ public class DBHelper extends SQLiteOpenHelper {
                                 "  FOREIGN KEY (author_email) REFERENCES " + TABLE_USERS + "(email) ON DELETE SET NULL" +
                                 ")"
                 );
-
-                // 2) ย้ายข้อมูลจากตารางเดิม
                 db.execSQL(
                         "INSERT INTO writings_v23 " +
                                 "(id, title, tagline, tag, category, image_path, content, author_email, " + COL_LIKES + ", views_count) " +
                                 "SELECT id, title, tagline, tag, category, image_path, content, author_email, " + COL_LIKES + ", IFNULL(views_count,0) " +
                                 "FROM " + TABLE_WRITINGS
                 );
-
-                // 3) ลบเก่า + เปลี่ยนชื่อใหม่
                 db.execSQL("DROP TABLE IF EXISTS " + TABLE_WRITINGS);
                 db.execSQL("ALTER TABLE writings_v23 RENAME TO " + TABLE_WRITINGS);
-
-                // 4) สร้างดัชนีกลับมา
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_likes ON " + TABLE_WRITINGS + "(" + COL_LIKES + ")");
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_views ON " + TABLE_WRITINGS + "(views_count)");
                 db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_author_email ON " + TABLE_WRITINGS + "(author_email)");
-
                 db.setTransactionSuccessful();
-            } finally {
-                db.endTransaction();
-            }
+            } finally { db.endTransaction(); }
         }
+
+        // v25+: เพิ่มคอลัมน์แบน + ตาราง reports/notifications
+        if (oldVersion < 25) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_REPORTS + " (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "comment_id INTEGER," +
+                    "writing_id INTEGER," +
+                    "reporter_email TEXT NOT NULL," +
+                    "reason TEXT," +
+                    "status TEXT NOT NULL DEFAULT 'OPEN'," +
+                    "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))," +
+                    "resolved_at INTEGER," +
+                    "moderator_note TEXT," +
+                    "FOREIGN KEY (comment_id) REFERENCES " + TABLE_COMMENTS + "(id) ON DELETE CASCADE," +
+                    "FOREIGN KEY (writing_id) REFERENCES " + TABLE_WRITINGS + "(id) ON DELETE CASCADE" +
+                    ")");
+        }
+
+        if (oldVersion < 26) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_NOTIFICATIONS + " (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                    "user_email TEXT NOT NULL," +
+                    "type TEXT NOT NULL," +
+                    "title TEXT," +
+                    "message TEXT," +
+                    "payload_json TEXT," +
+                    "created_at INTEGER NOT NULL," +
+                    "read_at INTEGER)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_notif_user_time ON " + TABLE_NOTIFICATIONS + "(user_email, created_at DESC)");
+        }
+        if (oldVersion < 25) {
+            ensureReportsTable(db);
+        }
+
+        // safety net
+        ensureEpisodesTable(db);
+        ensureBookmarksTable(db);
+        ensureHistoryTable(db);
+        ensureFollowsTable(db);
     }
 
     public void onDowngrade(SQLiteDatabase db, int oldVersion, int newVersion) {
@@ -268,6 +320,7 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_hist_user_time ON " + TABLE_HISTORY + "(user_email, created_at DESC)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_hist_writing ON " + TABLE_HISTORY + "(writing_id)");
     }
+
 
     // ======================== MODELS ========================
     public static class HistoryItem {
@@ -305,6 +358,30 @@ public class DBHelper extends SQLiteOpenHelper {
         public String episodeTitle;   // for display
         public String content;
         public long createdAt;
+    }
+
+    public static class Banner { public int id; public String imagePath, title, deeplink; public boolean active; }
+
+
+    public static class Notification {
+        public int id;
+        public String userEmail, type, title, message, payloadJson;
+        public long createdAt;
+        public Long readAt; // nullable
+    }
+
+    public static class ReportItem {
+        public int id;
+        public int commentId;
+        public String reporterEmail;
+        public String reason;
+        public long createdAt;
+        public String status; // open/cleared/banned
+        // joined info (optional display)
+        public String commentContent;
+        public String commentUserEmail;
+        public String writingTitle;
+        public String episodeTitle;
     }
 
     // ======================== HISTORY APIs ========================
@@ -398,6 +475,34 @@ public class DBHelper extends SQLiteOpenHelper {
     public boolean clearLoginSession() {
         SQLiteDatabase db = this.getWritableDatabase();
         return db.delete(TABLE_CURRENT_SESSION, null, null) > 0;
+    }
+
+
+    // ==== BAN API ====
+    public boolean banUser(String email, @Nullable String reason) {
+        if (email == null || email.trim().isEmpty()) return false;
+        ContentValues cv = new ContentValues();
+        cv.put(COL_IS_BANNED, 1);
+        if (reason != null) cv.put(COL_BAN_REASON, reason);
+        return getWritableDatabase().update(TABLE_USERS, cv, "email=?", new String[]{ email }) > 0;
+    }
+    public boolean unbanUser(String email) {
+        if (email == null || email.trim().isEmpty()) return false;
+        ContentValues cv = new ContentValues();
+        cv.put(COL_IS_BANNED, 0);
+        cv.putNull(COL_BAN_REASON);
+        return getWritableDatabase().update(TABLE_USERS, cv, "email=?", new String[]{ email }) > 0;
+    }
+    public boolean isUserBanned(String email) {
+        if (email == null) return false;
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT " + COL_IS_BANNED + " FROM " + TABLE_USERS + " WHERE email=? LIMIT 1",
+                new String[]{ email })) {
+            return (c.moveToFirst() && c.getInt(0) == 1);
+        }
+    }
+    public boolean canUserWriteOrComment(String email) {
+        return !isUserBanned(email);
     }
 
     // ======================== USERS ========================
@@ -934,23 +1039,7 @@ public class DBHelper extends SQLiteOpenHelper {
         return list;
     }
 
-    public boolean setFollow(String followerEmail, String authorEmail, boolean enable) {
-        if (followerEmail == null || followerEmail.trim().isEmpty()) return false;
-        if (authorEmail   == null || authorEmail.trim().isEmpty())   return false;
 
-        SQLiteDatabase db = getWritableDatabase();
-        if (enable) {
-            ContentValues cv = new ContentValues();
-            cv.put("follower_email", followerEmail.trim());
-            cv.put("author_email",   authorEmail.trim());
-            cv.put("created_at",     System.currentTimeMillis());
-            long id = db.insertWithOnConflict(TABLE_FOLLOWS, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
-            return id != -1 || isFollowing(followerEmail, authorEmail);
-        } else {
-            return db.delete(TABLE_FOLLOWS, "follower_email=? AND author_email=?",
-                    new String[]{followerEmail.trim(), authorEmail.trim()}) > 0;
-        }
-    }
 
     public boolean isFollowing(String followerEmail, String authorEmail) {
         SQLiteDatabase db = getReadableDatabase();
@@ -1100,6 +1189,12 @@ public class DBHelper extends SQLiteOpenHelper {
             userEmail = getLoggedInUserEmail();
             if (userEmail == null || userEmail.trim().isEmpty()) userEmail = "guest";
         }
+        // บล็อกถ้าโดนแบน
+        if (!canUserWriteOrComment(userEmail)) {
+            Log.e("DBHelper", "addComment blocked: user is banned");
+            return -1;
+        }
+
         if (content == null) content = "";
         SQLiteDatabase db = getWritableDatabase();
         ContentValues cv = new ContentValues();
@@ -1152,8 +1247,147 @@ public class DBHelper extends SQLiteOpenHelper {
         return out;
     }
 
+    public long reportComment(int commentId, @Nullable String reporterEmail, @Nullable String reason) {
+        ContentValues cv = new ContentValues();
+        cv.put("comment_id", commentId);
+        cv.put("reporter_email", reporterEmail);
+        cv.put("reason", reason);
+        cv.put("created_at", System.currentTimeMillis());
+        cv.put("status", "open");
+        return getWritableDatabase().insert(TABLE_REPORTS, null, cv);
+    }
+
+    public boolean clearReport(int reportId) {
+        ContentValues cv = new ContentValues();
+        cv.put("status", "cleared");
+        return getWritableDatabase().update(TABLE_REPORTS, cv, "id=?", new String[]{ String.valueOf(reportId) }) > 0;
+    }
+
+    /** สำหรับหน้า Admin: ดึงรายการรีพอร์ต + ข้อมูลประกอบ */
+    public List<ReportItem> getReportedComments() {
+        String sql =
+                "SELECT r.id, r.comment_id, r.reporter_email, r.reason, r.created_at, r.status, " +
+                        "c.content, c.user_email, w.title, " +
+                        "(SELECT e.title FROM " + TABLE_EPISODES + " e WHERE e.episode_id=c.episode_id) AS ep_title " +
+                        "FROM " + TABLE_REPORTS + " r " +
+                        "JOIN " + TABLE_COMMENTS + " c ON c.id=r.comment_id " +
+                        "JOIN " + TABLE_WRITINGS + " w ON w.id=c.writing_id " +
+                        "WHERE r.status='open' " +
+                        "ORDER BY r.created_at DESC";
+        ArrayList<ReportItem> list = new ArrayList<>();
+        try (Cursor c = getReadableDatabase().rawQuery(sql, null)) {
+            while (c.moveToNext()) {
+                ReportItem r = new ReportItem();
+                r.id = c.getInt(0);
+                r.commentId = c.getInt(1);
+                r.reporterEmail = c.isNull(2) ? null : c.getString(2);
+                r.reason = c.isNull(3) ? null : c.getString(3);
+                r.createdAt = c.getLong(4);
+                r.status = c.getString(5);
+                r.commentContent = c.getString(6);
+                r.commentUserEmail = c.getString(7);
+                r.writingTitle = c.getString(8);
+                r.episodeTitle = c.getString(9);
+                list.add(r);
+            }
+        }
+        return list;
+    }
+
+    // ======================== FOLLOWS (เพิ่มแจ้งเตือนเมื่อมีคนกดติดตาม) ========================
+    public boolean setFollow(String followerEmail, String authorEmail, boolean enable) {
+        if (followerEmail == null || followerEmail.trim().isEmpty()) return false;
+        if (authorEmail   == null || authorEmail.trim().isEmpty())   return false;
+
+        SQLiteDatabase db = getWritableDatabase();
+        if (enable) {
+            ContentValues cv = new ContentValues();
+            cv.put("follower_email", followerEmail.trim());
+            cv.put("author_email",   authorEmail.trim());
+            cv.put("created_at",     System.currentTimeMillis());
+            long id = db.insertWithOnConflict(TABLE_FOLLOWS, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
+
+            // แจ้งผู้เขียนว่ามีคนติดตาม (ถ้า insert สำเร็จ)
+            if (id != -1) {
+                String followerName = getUsernameByEmail(followerEmail);
+                enqueueNotification(
+                        authorEmail,
+                        "FOLLOW",
+                        "You have a new follower",
+                        (followerName != null ? followerName : followerEmail) + " started following you.",
+                        "{\"followerEmail\":\"" + followerEmail + "\"}"
+                );
+            }
+            return id != -1 || isFollowing(followerEmail, authorEmail);
+        } else {
+            return db.delete(TABLE_FOLLOWS, "follower_email=? AND author_email=?",
+                    new String[]{followerEmail.trim(), authorEmail.trim()}) > 0;
+        }
+    }
+
+    public List<String> getFollowersEmails(String authorEmail) {
+        ArrayList<String> list = new ArrayList<>();
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT follower_email FROM " + TABLE_FOLLOWS + " WHERE author_email=? ORDER BY created_at DESC",
+                new String[]{ authorEmail })) {
+            while (c.moveToNext()) list.add(c.getString(0));
+        }
+        return list;
+    }
+    // ======================== NOTIFICATIONS ========================
+    public long enqueueNotification(String toEmail, String type, @Nullable String title, @Nullable String message, @Nullable String payloadJson) {
+        if (toEmail == null || toEmail.trim().isEmpty()) return -1;
+        ContentValues cv = new ContentValues();
+        cv.put("user_email", toEmail.trim());
+        cv.put("type", type != null ? type : "SYSTEM");
+        if (title != null)   cv.put("title", title);
+        if (message != null) cv.put("message", message);
+        if (payloadJson != null) cv.put("payload_json", payloadJson);
+        cv.put("created_at", System.currentTimeMillis());
+        return getWritableDatabase().insert(TABLE_NOTIFICATIONS, null, cv);
+    }
+
+    public List<Notification> getUnreadNotifications(String userEmail) {
+        ArrayList<Notification> list = new ArrayList<>();
+        if (userEmail == null || userEmail.trim().isEmpty()) return list;
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT id, user_email, type, title, message, payload_json, created_at, read_at " +
+                        "FROM " + TABLE_NOTIFICATIONS + " WHERE user_email=? AND read_at IS NULL " +
+                        "ORDER BY created_at DESC",
+                new String[]{ userEmail })) {
+            while (c.moveToNext()) {
+                Notification n = new Notification();
+                n.id = c.getInt(0);
+                n.userEmail = c.getString(1);
+                n.type = c.getString(2);
+                n.title = c.isNull(3) ? null : c.getString(3);
+                n.message = c.isNull(4) ? null : c.getString(4);
+                n.payloadJson = c.isNull(5) ? null : c.getString(5);
+                n.createdAt = c.getLong(6);
+                n.readAt = c.isNull(7) ? null : c.getLong(7);
+                list.add(n);
+            }
+        }
+        return list;
+    }
+
+    public boolean markNotificationRead(int notifId) {
+        ContentValues cv = new ContentValues();
+        cv.put("read_at", System.currentTimeMillis());
+        return getWritableDatabase().update(TABLE_NOTIFICATIONS, cv, "id=?", new String[]{ String.valueOf(notifId) }) > 0;
+    }
+
     // ======================== EPISODES ========================
     public boolean insertEpisode(int writingId, String title, String html, boolean isPrivate) {
+        if (!writingExists(writingId)) return false;
+
+        // ตรวจคนเขียนถูกแบน?
+        String authorEmail = getAuthorEmailForWriting(writingId);
+        if (authorEmail == null || !canUserWriteOrComment(authorEmail)) {
+            Log.e("DBHelper", "insertEpisode blocked: author banned or unknown");
+            return false;
+        }
+
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put("writing_id", writingId);
@@ -1170,10 +1404,26 @@ public class DBHelper extends SQLiteOpenHelper {
         cv.put("created_at_text", nowText);
         cv.put("updated_at_text", nowText);
 
-        try { return db.insertOrThrow(TABLE_EPISODES, null, cv) != -1; }
+        boolean ok;
+        try { ok = db.insertOrThrow(TABLE_EPISODES, null, cv) != -1; }
         catch (Exception e) { Log.e("DBHelper", "insertEpisode failed", e); return false; }
-    }
 
+        // แจ้งเตือนผู้ติดตาม (เฉพาะ public)
+        if (ok && !isPrivate) {
+            List<String> followers = getFollowersEmails(authorEmail);
+            String wTitle = getWritingTitle(writingId);
+            for (String follower : followers) {
+                enqueueNotification(
+                        follower,
+                        "NEW_EPISODE",
+                        "New episode: " + (wTitle != null ? wTitle : "New update"),
+                        "There's a new episode from " + (getUsernameByEmail(authorEmail) != null ? getUsernameByEmail(authorEmail) : authorEmail),
+                        "{\"writingId\":" + writingId + ",\"episodeNo\":" + nextNo + "}"
+                );
+            }
+        }
+        return ok;
+    }
     public boolean updateEpisode(int episodeId, String title, String html, boolean isPrivate) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues cv = new ContentValues();
@@ -1285,6 +1535,15 @@ public class DBHelper extends SQLiteOpenHelper {
     }
 
 
+    private String getWritingTitle(int writingId) {
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT title FROM " + TABLE_WRITINGS + " WHERE id=?",
+                new String[]{ String.valueOf(writingId) })) {
+            return c.moveToFirst() ? c.getString(0) : null;
+        }
+    }
+
+
     // ======================== FEED ========================
     public static class EpisodeFeed {
         public int episodeId, writingId, episodeNo;
@@ -1354,6 +1613,27 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_follows_follower ON " + TABLE_FOLLOWS + "(follower_email)");
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_follows_author   ON " + TABLE_FOLLOWS + "(author_email)");
     }
+
+    private void ensureReportsTable(SQLiteDatabase db) {
+        db.execSQL(
+                "CREATE TABLE IF NOT EXISTS " + TABLE_REPORTS + " (" +
+                        "  id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                        "  comment_id INTEGER," +                // คอมเมนต์ที่ถูกรายงาน (อาจเป็น null ถ้ารายงานทั้งเรื่อง)
+                        "  writing_id INTEGER," +                // เรื่องที่เกี่ยวข้อง
+                        "  reporter_email TEXT NOT NULL," +      // ใครกด report
+                        "  reason TEXT," +                       // เหตุผลที่รายงาน
+                        "  status TEXT NOT NULL DEFAULT 'OPEN'," + // OPEN / RESOLVED
+                        "  created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))," +
+                        "  resolved_at INTEGER," +
+                        "  moderator_note TEXT," +
+                        "  FOREIGN KEY (comment_id) REFERENCES " + TABLE_COMMENTS + "(id) ON DELETE CASCADE," +
+                        "  FOREIGN KEY (writing_id) REFERENCES " + TABLE_WRITINGS + "(id) ON DELETE CASCADE" +
+                        ")"
+        );
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_reports_status ON " + TABLE_REPORTS + "(status)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_reports_created ON " + TABLE_REPORTS + "(created_at DESC)");
+    }
+
 
     private void safeAddColumn(SQLiteDatabase db, String table, String column, String typeAndDefault) {
         if (!hasColumn(db, table, column)) {
@@ -1547,13 +1827,32 @@ public class DBHelper extends SQLiteOpenHelper {
         return list;
     }
 
-    public static class Banner {
-        public int id;
-        public String imagePath;   // URI string (content:// or file:// or https://)
-        public String title;       // optional
-        public String deeplink;    // optional (tap to open)
-        public boolean active;
+    /** ดึงรายการรีพอร์ตสถานะ OPEN พร้อมข้อมูลคอมเมนต์/เจ้าของ/ชื่องานเขียน */
+    public android.database.Cursor getOpenReportsCursor() {
+        String sql =
+                "SELECT r.id, r.reason, r.reporter_email, r.created_at, " +
+                        "       c.content AS comment_text, " +
+                        "       c.user_email AS comment_owner, " +
+                        "       w.title AS writing_title " +
+                        "FROM " + TABLE_REPORTS + " r " +
+                        "LEFT JOIN " + TABLE_COMMENTS + " c ON c.id = r.comment_id " +
+                        "LEFT JOIN " + TABLE_WRITINGS + " w ON w.id = r.writing_id " +
+                        "WHERE r.status = 'OPEN' " +
+                        "ORDER BY r.id DESC";
+        return getReadableDatabase().rawQuery(sql, null);
     }
+
+    /** ปิดเคสรีพอร์ต (เปลี่ยนสถานะเป็น RESOLVED + บันทึกเวลา/โน้ตผู้ดูแล) */
+    public boolean resolveReport(int reportId, @Nullable String moderatorNote) {
+        android.content.ContentValues cv = new android.content.ContentValues();
+        cv.put("status", "RESOLVED");
+        cv.put("resolved_at", System.currentTimeMillis() / 1000L); // เก็บเป็นวินาที
+        if (moderatorNote != null) cv.put("moderator_note", moderatorNote);
+        return getWritableDatabase().update(TABLE_REPORTS, cv, "id=?",
+                new String[]{ String.valueOf(reportId) }) > 0;
+    }
+
+
 
 
 

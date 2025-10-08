@@ -12,57 +12,80 @@ public class AdminPanelActivity extends AppCompatActivity {
 
     private TextView txtBookCount, txtUserCount;
     private ImageView imgHome, imgBell;
+    private CardView cardBook, cardUsers, cardBanner;
 
     private DBHelper db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_admin); // ใช้ XML ที่คุณส่งมา
+        setContentView(R.layout.activity_admin);
 
         db = new DBHelper(this);
 
-        // --- ผูกตัวแปรกับ XML ---
+        // bind views
         txtBookCount = findViewById(R.id.txtBookCount);
         txtUserCount = findViewById(R.id.txtUserCount);
         imgHome      = findViewById(R.id.imgHome);
         imgBell      = findViewById(R.id.imgBell);
+        cardBook     = findViewById(R.id.cardView);
+        cardUsers    = findViewById(R.id.cardView2);
+        cardBanner   = findViewById(R.id.cardBanner);
 
-        // ✅ การ์ด (กดเพื่อไปหน้า list)
-        CardView cardBook  = findViewById(R.id.cardView);   // การ์ด Book
-        CardView cardUsers = findViewById(R.id.cardView2);  // การ์ด Users
+        // การ์ดไปแต่ละหน้า
+        if (cardBook != null)  cardBook.setOnClickListener(v ->
+                startActivity(new Intent(this, BooksListActivity.class)));
 
-        // --- แสดงจำนวนจาก DB ---
-        txtBookCount.setText(String.valueOf(db.countAllWritings()));
-        txtUserCount.setText(String.valueOf(db.countAllUsers()));
+        if (cardUsers != null) cardUsers.setOnClickListener(v ->
+                startActivity(new Intent(this, UserListActivity.class)));
 
-        // --- ปุ่ม Home: (ถ้าคุณต้องการให้กลับมาหน้านี้อยู่แล้วกดไม่ต้องทำอะไรก็ได้)
-        imgHome.setOnClickListener(v -> {
-            // ถ้าคลิกแล้วต้องไป "หน้าแรกระบบ" ให้เปลี่ยนเป็น HomeActivity.class
-            // startActivity(new Intent(this, HomeActivity.class));
-            // ตอนนี้อยู่หน้า admin แล้ว เลยไม่ต้องทำอะไร
-        });
+        if (cardBanner != null) cardBanner.setOnClickListener(v ->
+                startActivity(new Intent(this, AdminBannerActivity.class)));
 
-        // --- ปุ่ม Bell: ตัวอย่าง Toast ไว้ก่อน ---
-        imgBell.setOnClickListener(v ->
-                android.widget.Toast.makeText(this, "ยังไม่มีการแจ้งเตือน", android.widget.Toast.LENGTH_SHORT).show()
-        );
+        // กระดิ่ง: ไปหน้ารีพอร์ต
+        if (imgBell != null) imgBell.setOnClickListener(v ->
+                startActivity(new Intent(this, AdminReportsActivity.class)));
 
-        // ✅ ไปหน้า Books List
-        cardBook.setOnClickListener(v ->
-                startActivity(new Intent(this, BooksListActivity.class))
-        );
+        // ปุ่ม Home: กลับ MainActivity แบบล้างสแตกกันวนกลับ
+        if (imgHome != null) {
+            imgHome.setOnClickListener(v -> {
+                db.clearLoginSession();
+                Intent i = new Intent(AdminPanelActivity.this, MainActivity.class);
+                i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                i.putExtra("from_admin_home", true);  // กัน MainActivity รีเดิร์กกลับมาหน้านี้
+                startActivity(i);
+                finish(); // ปิดหน้า admin ทิ้งไปเลย
+            });
+        }
 
-        // ✅ ไปหน้า Users List (ถ้าชื่อคลาสจริงของคุณต่างออกไป ให้แก้ชื่อคลาสตรงนี้)
-        cardUsers.setOnClickListener(v ->
-                        startActivity(new Intent(this, UserListActivity.class))
-                // หรือ UsersListActivity.class แล้วแต่โปรเจกต์คุณใช้ชื่อไหน
-        );
-        CardView cardBanner = findViewById(R.id.cardBanner);
-        cardBanner.setOnClickListener(v ->
-                startActivity(new Intent(AdminPanelActivity.this, AdminBannerActivity.class))
-        );
+        // โหลดตัวเลขรอบแรก
+        refreshCountersSafely();
+    }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // กลับมาหน้านี้ให้รีเฟรชจำนวนล่าสุด
+        refreshCountersSafely();
+    }
+
+    private void refreshCountersSafely() {
+        try {
+            txtBookCount.setText(String.valueOf(db.countAllWritings()));
+            txtUserCount.setText(String.valueOf(db.countAllUsers()));
+        } catch (Throwable ignore) {
+            txtBookCount.setText("0");
+            txtUserCount.setText("0");
+        }
+    }
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        db.clearLoginSession();
+        Intent i = new Intent(AdminPanelActivity.this, MainActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(i);
+        finish();
     }
 
 }
