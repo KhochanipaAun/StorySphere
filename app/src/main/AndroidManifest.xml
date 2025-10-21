@@ -82,6 +82,7 @@
             android:exported="false" />
         <activity
             android:name=".activity_episode"
+            android:windowSoftInputMode="adjustResize"
             android:exported="false" />
         <activity
             android:name=".CategoryListActivity"

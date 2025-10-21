@@ -1,23 +1,29 @@
 package com.example.storysphere_appbar;
 
 import android.content.Intent;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
-import android.text.Layout;
 import android.text.Spanned;
+import android.graphics.text.LineBreaker; // break/justification constants
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.GravityCompat;
 import androidx.core.widget.NestedScrollView;
 import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.recyclerview.widget.DividerItemDecoration;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class activity_episode extends AppCompatActivity {
@@ -29,12 +35,15 @@ public class activity_episode extends AppCompatActivity {
     // BottomSheet Comment
     private BottomSheetBehavior<FrameLayout> commentsSheet;
     private RecyclerView rvComments;
+    private CommentAdapter commentAdapter;
+    private EditText edtComment;
+    private View btnSendComment;
 
     private TextView tvEpisodeNumber, tvEpisodeTitle, tvEpisodeHeading, tvEpisodeContent;
 
     private int writingId;
     private int currentEpisodeId;
-    private List<Episode> episodeList;   // ✅ ใช้ Episode ภายนอก
+    private List<Episode> episodeList;
     private int position = 0;
 
     @Override
@@ -54,6 +63,7 @@ public class activity_episode extends AppCompatActivity {
         }
 
         db = new DBHelper(this);
+        db.ensureCommentTables(); // สร้างตารางคอมเมนต์/ไลก์ถ้ายังไม่มี
 
         // รับพารามิเตอร์
         writingId        = getIntent().getIntExtra(ReadingMainActivity.EXTRA_WRITING_ID, -1);
@@ -74,7 +84,7 @@ public class activity_episode extends AppCompatActivity {
         if (btnClose != null) btnClose.setOnClickListener(v -> drawer.closeDrawer(GravityCompat.START));
 
         // โหลดตอนทั้งหมดของเรื่อง
-        episodeList = db.getEpisodesByWritingId(writingId); // ✅ คืน List<Episode>
+        episodeList = db.getEpisodesByWritingId(writingId);
 
         // รายการตอนใน Drawer
         rvEpisodes.setLayoutManager(new LinearLayoutManager(this));
@@ -111,23 +121,150 @@ public class activity_episode extends AppCompatActivity {
         commentsSheet.setHideable(true);
         commentsSheet.setState(BottomSheetBehavior.STATE_HIDDEN);
 
-        rvComments = sheet.findViewById(R.id.rvComments);
-        if (rvComments != null) rvComments.setLayoutManager(new LinearLayoutManager(this));
+        rvComments    = sheet.findViewById(R.id.rvComments);
+        edtComment    = sheet.findViewById(R.id.edtComment);
+        btnSendComment= sheet.findViewById(R.id.btnSendComment);
 
+        if (rvComments != null) {
+            rvComments.setLayoutManager(new LinearLayoutManager(this));
+
+            // เส้นคั่นเว้น avatar (ถ้ามี divider_inset.xml)
+            try {
+                DividerItemDecoration deco =
+                        new DividerItemDecoration(this, DividerItemDecoration.VERTICAL);
+                Drawable d = androidx.core.content.ContextCompat.getDrawable(this, R.drawable.divider_inset);
+                if (d != null) deco.setDrawable(d);
+                rvComments.addItemDecoration(deco);
+            } catch (Exception ignore) {}
+
+            // ใช้ CommentAdapter เวอร์ชันมี Listener
+            commentAdapter = new CommentAdapter(new CommentAdapter.OnCommentActionListener() {
+                @Override public void onLikeToggle(CommentAdapter.Comment c) {
+                    // (ออปชัน) ทำระบบ like comment ในภายหลัง
+                }
+                @Override public void onReply(CommentAdapter.Comment c) {
+                    if (edtComment != null) {
+                        edtComment.requestFocus();
+                        edtComment.setText("@" + c.userName + " ");
+                        edtComment.setSelection(edtComment.getText().length());
+                    }
+                }
+                @Override public void onReport(CommentAdapter.Comment c) {
+                    Toast.makeText(activity_episode.this, "Reported", Toast.LENGTH_SHORT).show();
+                }
+                @Override public void onDelete(CommentAdapter.Comment c) {
+                    String me = db.getLoggedInUserEmail();
+                    if (me == null || me.isEmpty()) return;
+                    if (db.deleteCommentIfOwner(c.id, me)) {
+                        reloadCommentsIntoAdapter();
+                    } else {
+                        Toast.makeText(activity_episode.this, "Delete failed", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
+            rvComments.setAdapter(commentAdapter);
+        }
+
+        // เปิดแผ่นคอมเมนต์เมื่อกดปุ่ม
         View actionComment = findViewById(R.id.actionComment);
         if (actionComment != null) {
             actionComment.setOnClickListener(v -> {
-                if (rvComments != null) {
-                    rvComments.setAdapter(new CommentAdapter(loadComments(currentEpisodeId)));
-                }
+                reloadCommentsIntoAdapter();                  // โหลดจาก DB ตาม episode ปัจจุบัน
                 commentsSheet.setState(BottomSheetBehavior.STATE_EXPANDED);
+                scrollCommentsToBottom();
+            });
+        }
+
+        // ปุ่มส่งคอมเมนต์
+        if (btnSendComment != null) {
+            btnSendComment.setOnClickListener(v -> {
+                if (edtComment == null) return;
+                String text = edtComment.getText() == null ? "" : edtComment.getText().toString().trim();
+                if (text.isEmpty()) {
+                    edtComment.setError("โปรดพิมพ์คอมเมนต์");
+                    return;
+                }
+
+                long rowId = db.addComment(null /* resolve เป็นผู้ใช้ปัจจุบันภายใน DBHelper */,
+                        writingId, currentEpisodeId, text);
+                if (rowId == -1) {
+                    Toast.makeText(this, "ส่งคอมเมนต์ไม่สำเร็จ", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // เคลียร์ + รีโหลด
+                edtComment.setText("");
+                reloadCommentsIntoAdapter();
+                scrollCommentsToBottom();
+
+                // แจ้งหน้าอื่นถ้ามีนับคอมเมนต์/สถิติ
+                LocalBroadcastManager.getInstance(this).sendBroadcast(
+                        new Intent(ReadingMainActivity.ACTION_WRITING_CHANGED)
+                                .putExtra(ReadingMainActivity.EXTRA_WRITING_ID, writingId)
+                );
             });
         }
     }
 
+    /** โหลดคอมเมนต์จากตาราง comments โดยตรง แล้วใส่ลง Adapter */
+    private void reloadCommentsIntoAdapter() {
+        if (rvComments == null || commentAdapter == null) return;
+
+        ArrayList<CommentAdapter.Comment> ui = new ArrayList<>();
+        String me = db.getLoggedInUserEmail();
+        if (me == null) me = "";
+
+        // NOTE: ถ้าตารางคุณใช้คอลัมน์ชื่อ "text" ให้เปลี่ยน 'content' ใน SELECT และ getString(2) เป็น 'text'
+        android.database.sqlite.SQLiteDatabase rdb = db.getReadableDatabase();
+        android.database.Cursor c = rdb.rawQuery(
+                "SELECT id, user_email, content, created_at " +
+                        "FROM comments " +
+                        "WHERE writing_id=? AND (episode_id=? OR episode_id IS NULL) " +
+                        "ORDER BY created_at ASC",
+                new String[]{ String.valueOf(writingId), String.valueOf(currentEpisodeId) });
+
+        while (c.moveToNext()) {
+            int    id        = c.getInt(0);
+            String email     = c.getString(1);
+            String content   = c.getString(2);
+            long   createdAt = c.getLong(3);
+
+            String display = null;
+            try { display = db.getUserDisplayName(email); } catch (Exception ignored) {}
+            if (display == null || display.trim().isEmpty()) display = email;
+
+            boolean isWriter = false;
+            try { isWriter = db.isUserWriter(email, writingId); } catch (Exception ignored) {}
+
+            boolean mine = me.equalsIgnoreCase(email);
+
+            ui.add(new CommentAdapter.Comment(
+                    id,
+                    display,
+                    email,
+                    null,                            // avatarUrl (ยังไม่ใช้)
+                    content != null ? content : "",
+                    isWriter,
+                    createdAt,
+                    false, 0,                        // likedByMe/likeCount (ยังไม่ใช้)
+                    mine
+            ));
+        }
+        c.close();
+
+        commentAdapter.submitList(ui);
+    }
+
+    /** เลื่อน RecyclerView ไปท้ายสุด */
+    private void scrollCommentsToBottom() {
+        if (rvComments == null || rvComments.getAdapter() == null) return;
+        int n = rvComments.getAdapter().getItemCount();
+        if (n > 0) rvComments.scrollToPosition(n - 1);
+    }
+
     /** แสดงตอนตาม id + บันทึกประวัติอ่าน (History) */
     private void showEpisode(int episodeId) {
-        Episode ep = db.getEpisodeById(episodeId); // ✅ ได้ Episode ภายนอก
+        Episode ep = db.getEpisodeById(episodeId);
         if (ep == null) return;
 
         currentEpisodeId = ep.episodeId;
@@ -144,11 +281,15 @@ public class activity_episode extends AppCompatActivity {
 
         if (tvEpisodeContent != null) {
             tvEpisodeContent.setText(sp);
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                tvEpisodeContent.setJustificationMode(Layout.JUSTIFICATION_MODE_NONE);
-            }
+
+            // break strategy: API 23+
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                tvEpisodeContent.setBreakStrategy(Layout.BREAK_STRATEGY_SIMPLE);
+                tvEpisodeContent.setBreakStrategy(LineBreaker.BREAK_STRATEGY_SIMPLE);
+            }
+
+            // justification mode: API 33+
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                tvEpisodeContent.setJustificationMode(LineBreaker.JUSTIFICATION_MODE_NONE);
             }
         }
 
@@ -156,10 +297,15 @@ public class activity_episode extends AppCompatActivity {
         NestedScrollView ns = findViewById(R.id.scrollContent);
         if (ns != null) ns.smoothScrollTo(0, 0);
 
-        // ✅ บันทึก History ทุกครั้งที่เปิดตอน (ลายเซ็นใหม่: email, writingId, episodeId)
+        // บันทึก History
         String email = db.getLoggedInUserEmail();
         if (email == null || email.trim().isEmpty()) email = "guest";
         db.addHistory(email, writingId, ep.episodeId);
+
+        // ถ้า BottomSheet เปิดอยู่ ให้รีโหลดคอมเมนต์ของตอนนี้
+        if (commentsSheet != null && commentsSheet.getState() == BottomSheetBehavior.STATE_EXPANDED) {
+            reloadCommentsIntoAdapter();
+        }
     }
 
     /** ตั้งค่าตำแหน่งตอนใหม่ + อัปเดตหน้าจอ + ปุ่มขอบ */
@@ -194,15 +340,6 @@ public class activity_episode extends AppCompatActivity {
         if (next != null) { next.setEnabled(canNext); next.setAlpha(canNext ? 1f : 0.4f); }
     }
 
-    /** mock data คอมเมนต์ – เปลี่ยนเป็นโหลดจาก DB/Server ได้ */
-    private java.util.List<CommentAdapter.Comment> loadComments(int episodeId) {
-        java.util.ArrayList<CommentAdapter.Comment> list = new java.util.ArrayList<>();
-        list.add(new CommentAdapter.Comment("ak0mlnw5087", "สนุกสุด ๆ เมื่อไหร่จะมาต่อครับ", false));
-        list.add(new CommentAdapter.Comment("HANAmai", "ขอบคุณค่ะ อัปโหลดวันละตอนค่ะ", true));
-        list.add(new CommentAdapter.Comment("ak0mlnw5087", "รอติดตามครับ!", false));
-        return list;
-    }
-
     @Override
     public void onBackPressed() {
         if (commentsSheet != null && commentsSheet.getState() != BottomSheetBehavior.STATE_HIDDEN) {
@@ -225,7 +362,7 @@ public class activity_episode extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    // แปลง <p style="text-align:center/right">...</p> ให้เป็นแท็กที่ TextView รองรับ
+    // แปลง style text-align เป็นแท็กที่ TextView รองรับ
     private String normalizeHtmlForTextView(String html) {
         if (html == null) return "";
         html = html.replaceAll("(?is)<p[^>]*text-align\\s*:\\s*center[^>]*>(.*?)</p>", "<center>$1</center>");

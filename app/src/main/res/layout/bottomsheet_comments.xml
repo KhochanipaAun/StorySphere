@@ -2,10 +2,11 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:padding="12dp"
+    android:background="#F7F1FB"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
 
     <TextView
         android:id="@+id/tvCommentTitle"
@@ -22,7 +23,6 @@
         android:layout_marginTop="8dp"
         android:background="@color/light_gray" />
 
-    <!-- รายการคอมเมนต์ -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rvComments"
         android:layout_width="match_parent"
@@ -32,7 +32,6 @@
         android:clipToPadding="false"
         tools:listitem="@layout/item_comment" />
 
-    <!-- แถวพิมพ์คอมเมนต์ + ปุ่มส่ง -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -42,15 +41,11 @@
         <EditText
             android:id="@+id/edtComment"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="40dp"
             android:layout_weight="1"
+            android:paddingHorizontal="12dp"
             android:background="@drawable/bg_comment_input"
-            android:hint="Write a comment..."
-            android:imeOptions="actionSend"
-            android:inputType="textCapSentences|textMultiLine"
-            android:maxLines="4"
-            android:minLines="1"
-            android:paddingHorizontal="12dp" />
+            android:hint="Write a comment..." />
 
         <ImageView
             android:id="@+id/btnSendComment"
@@ -59,8 +54,8 @@
             android:layout_marginStart="8dp"
             android:padding="8dp"
             android:src="@drawable/ic_send"
-            android:contentDescription="Send"
             android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Send"
             app:tint="@color/darkpurple" />
     </LinearLayout>
 </LinearLayout>

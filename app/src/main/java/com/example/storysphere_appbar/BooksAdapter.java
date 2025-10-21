@@ -15,7 +15,7 @@ import java.util.Locale;
 
 public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.VH> {
 
-    // คลิกหลัก + onDelete เป็น optional (default ว่าง)
+    // คลิกหลัก + onDelete (Activity ต้อง override เพื่อสั่งลบ)
     public interface OnItemClick {
         void onClick(WritingItem item);
         default void onDelete(WritingItem item, int position) {}
@@ -44,15 +44,16 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.VH> {
         WritingItem w = data.get(i);
 
         h.txtBookId.setText(w.getId() > 0 ? "ID:" + w.getId() : "-");
-
-        // ใช้ getters ทั้งหมด
         h.txtTitleBook.setText(safe(w.getTitle()));
-        h.txtPenName.setText(safe(w.getTagline())); // ถ้า pen name อยู่ฟิลด์อื่น ปรับตรงนี้
+        h.txtPenName.setText(safe(w.getTagline())); // หาก pen name อยู่ฟิลด์อื่น ให้เปลี่ยนเป็นฟิลด์นั้น
         h.txtTag.setText(safe(w.getTag()));
-        // เดิม fix "Ongoing" → โชว์ category แทน
         h.txtStatusBook.setText(safe(w.getCategory()));
 
         h.itemView.setOnClickListener(v -> { if (click != null) click.onClick(w); });
+
+        // ปุ่มถังขยะ
+        h.imgDelete.setClickable(true);
+        h.imgDelete.setFocusable(true);
         h.imgDelete.setOnClickListener(v -> {
             if (click != null) click.onDelete(w, h.getAdapterPosition());
         });
@@ -61,12 +62,20 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.VH> {
     @Override public int getItemCount() { return data.size(); }
 
     @Override public long getItemId(int pos) {
-        // ถ้า id อาจเป็น 0 ให้ fallback เป็น position เพื่อกัน crash กับ stableIds
         long id = data.get(pos).getId();
         return id != 0 ? id : pos;
     }
 
-    /** กรองด้วย title/tagline/tag/category (case-insensitive) */
+    /** หลังลบ DB สำเร็จ ให้หายจาก UI แบบนิ่ม ๆ */
+    public void removeAt(int position) {
+        if (position < 0 || position >= data.size()) return;
+        WritingItem removed = data.remove(position);
+        if (removed != null) full.remove(removed);
+        notifyItemRemoved(position);
+        notifyItemRangeChanged(position, data.size() - position);
+    }
+
+    /** กรองด้วย title/tagline/tag/category */
     public void filter(String q) {
         data.clear();
         if (q == null || q.trim().isEmpty()) {
@@ -85,14 +94,12 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.VH> {
         notifyDataSetChanged();
     }
 
-    /** รีเซ็ตฟิลเตอร์กลับมาแสดงทั้งหมด */
     public void resetFilter() {
         data.clear();
         data.addAll(full);
         notifyDataSetChanged();
     }
 
-    /** อัปเดตข้อมูลทั้งชุด (เช่น หลังลบ/เพิ่ม) */
     public void updateData(List<WritingItem> newItems) {
         full.clear();
         data.clear();
@@ -103,9 +110,7 @@ public class BooksAdapter extends RecyclerView.Adapter<BooksAdapter.VH> {
         notifyDataSetChanged();
     }
 
-    private static String safe(String s) {
-        return (s == null || s.trim().isEmpty()) ? "-" : s;
-    }
+    private static String safe(String s) { return (s == null || s.trim().isEmpty()) ? "-" : s; }
 
     static class VH extends RecyclerView.ViewHolder {
         ImageView imageView11, imgDelete;

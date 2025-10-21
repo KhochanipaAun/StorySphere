@@ -1,32 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:padding="12dp">
+    android:paddingHorizontal="12dp"
+    android:paddingVertical="8dp">
 
     <!-- Avatar -->
     <ImageView
         android:id="@+id/imgAvatar"
         android:layout_width="40dp"
         android:layout_height="40dp"
-        android:src="@drawable/ic_launcher_foreground"
+        android:adjustViewBounds="true"
         android:scaleType="centerCrop"
+        android:src="@drawable/ic_launcher_foreground"
         android:background="@drawable/circle_background"
         android:contentDescription="@string/app_name"
-        android:layout_marginEnd="8dp"/>
+        android:layout_marginEnd="8dp" />
 
-    <!-- ส่วนเนื้อหา -->
+    <!-- เนื้อหา -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:orientation="vertical">
 
-        <!-- บรรทัดบน: ชื่อ + ป้าย Writer -->
+        <!-- แถวบน: ชื่อ + badge -->
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical">
@@ -38,7 +41,7 @@
                 android:text="Name"
                 android:textStyle="bold"
                 android:textColor="@color/black"
-                android:textSize="14sp"/>
+                android:textSize="14sp" />
 
             <TextView
                 android:id="@+id/tvWriterBadge"
@@ -51,22 +54,24 @@
                 android:textSize="12sp"
                 android:textColor="@android:color/white"
                 android:background="@drawable/bg_badge_writer"
-                android:visibility="gone"/>
+                android:visibility="gone" />
         </LinearLayout>
 
         <!-- ข้อความคอมเมนต์ -->
         <TextView
             android:id="@+id/tvCommentText"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Comment text"
             android:textColor="@color/black"
             android:textSize="14sp"
-            android:layout_marginTop="2dp"/>
+            android:layout_marginTop="2dp"
+            tools:maxLines="3"
+            tools:ellipsize="end" />
 
-        <!-- Action ด้านล่าง: Like / Reply -->
+        <!-- Actions -->
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_marginTop="4dp">
@@ -78,7 +83,7 @@
                 android:text="Like"
                 android:textSize="12sp"
                 android:textColor="@color/darkpurple"
-                android:paddingEnd="16dp"/>
+                android:paddingEnd="16dp" />
 
             <TextView
                 android:id="@+id/btnReply"
@@ -86,17 +91,17 @@
                 android:layout_height="wrap_content"
                 android:text="Reply"
                 android:textSize="12sp"
-                android:textColor="@color/darkpurple"/>
+                android:textColor="@color/darkpurple" />
         </LinearLayout>
     </LinearLayout>
 
-    <!-- ปุ่ม report -->
+    <!-- ปุ่มเมนูเพิ่มเติม -->
     <ImageView
         android:id="@+id/btnMore"
         android:layout_width="24dp"
         android:layout_height="24dp"
+        android:layout_gravity="top|end"
         android:src="@drawable/overflow_menu_vertical_svgrepo_com"
-        android:tint="@color/darkpurple"
-        android:contentDescription="Report"
-        tools:ignore="UseAppTint" />
+        android:contentDescription="More"
+        app:tint="@color/darkpurple" />
 </LinearLayout>

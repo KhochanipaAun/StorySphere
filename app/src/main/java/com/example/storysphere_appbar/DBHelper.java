@@ -49,6 +49,8 @@ public class DBHelper extends SQLiteOpenHelper {
     public void onConfigure(SQLiteDatabase db) {
         super.onConfigure(db);
         db.setForeignKeyConstraintsEnabled(true);
+        // เปิด FK constraints ให้ทำงาน
+        db.execSQL("PRAGMA foreign_keys=ON;");
     }
 
     // ======================== CREATE ========================
@@ -584,6 +586,32 @@ public class DBHelper extends SQLiteOpenHelper {
         return role;
     }
 
+    // คืนชื่อแสดงผลของผู้ใช้ (display_name ถ้ามี, ถ้าไม่มีใช้ email)
+    public String getUserDisplayName(String email) {
+        if (email == null) return null;
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor c = db.rawQuery("SELECT display_name FROM users WHERE email=?", new String[]{email});
+        String name = null;
+        if (c.moveToFirst()) {
+            name = c.getString(0);
+        }
+        c.close();
+        return (name != null && !name.trim().isEmpty()) ? name : email;
+    }
+
+    // ตรวจสอบว่า user เป็น writer ของเรื่องนี้หรือไม่
+    public boolean isUserWriter(String email, int writingId) {
+        if (email == null) return false;
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor c = db.rawQuery(
+                "SELECT 1 FROM writings WHERE id=? AND author_email=? LIMIT 1",
+                new String[]{String.valueOf(writingId), email});
+        boolean ok = c.moveToFirst();
+        c.close();
+        return ok;
+    }
+
+
     public String getUserImageUri(String email) {
         SQLiteDatabase db = this.getReadableDatabase();
         try (Cursor c = db.rawQuery("SELECT image_uri FROM " + TABLE_USERS + " WHERE email = ?", new String[]{email})) {
@@ -700,9 +728,30 @@ public class DBHelper extends SQLiteOpenHelper {
         return db.update(TABLE_WRITINGS, v, "id = ?", new String[]{String.valueOf(id)}) > 0;
     }
 
-    public boolean deleteWriting(int id) {
+    public boolean deleteWriting(int writingId) {
         SQLiteDatabase db = this.getWritableDatabase();
-        return db.delete(TABLE_WRITINGS, "id = ?", new String[]{String.valueOf(id)}) > 0;
+        db.beginTransaction();
+        try {
+            String[] args = new String[]{ String.valueOf(writingId) };
+
+            try { db.delete("comments",        "writing_id=?", args); } catch (Throwable ignore) {}
+            try { db.delete("episodes",        "writing_id=?", args); } catch (Throwable ignore) {}
+            try { db.delete("bookmarks",       "writing_id=?", args); } catch (Throwable ignore) {}
+            try { db.delete("user_likes",      "writing_id=?", args); } catch (Throwable ignore) {}
+            try { db.delete("reading_history", "writing_id=?", args); } catch (Throwable ignore) {}
+            try { db.delete("likes_log",       "writing_id=?", args); } catch (Throwable ignore) {}
+            try { db.delete("views_log",       "writing_id=?", args); } catch (Throwable ignore) {}
+
+            int affected = db.delete(TABLE_WRITINGS, "id=?", args);
+
+            db.setTransactionSuccessful();
+            return affected > 0;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        } finally {
+            db.endTransaction();
+        }
     }
 
     public Cursor getAllWritingsCursor() {
@@ -1181,28 +1230,213 @@ public class DBHelper extends SQLiteOpenHelper {
 
     // ======================== COMMENTS ========================
     /** เพิ่มคอมเมนต์ */
-    public long addComment(String userEmail, int writingId, @Nullable Integer episodeId, String content) {
+    public void ensureCommentTables() {
+        SQLiteDatabase db = getWritableDatabase();
+        db.execSQL("CREATE TABLE IF NOT EXISTS comments (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "writing_id INTEGER NOT NULL," +
+                "episode_id INTEGER," +                       // อนุญาต NULL ได้
+                "user_email TEXT NOT NULL," +
+                "content TEXT NOT NULL," +                    // หรือ text TEXT NOT NULL (ให้ใช้ key ให้ตรง)
+                "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))" +
+                ")");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_comments_episode ON comments(episode_id)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_comments_writing ON comments(writing_id)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_email)");
+
+        // ตาราง like คอมเมนต์ (ออปชัน ถ้ายังไม่มี)
+        db.execSQL("CREATE TABLE IF NOT EXISTS comment_likes (" +
+                "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "comment_id INTEGER NOT NULL," +
+                "user_email TEXT NOT NULL," +
+                "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))," +
+                "UNIQUE(comment_id, user_email) ON CONFLICT IGNORE)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_comment_likes_c ON comment_likes(comment_id)");
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_comment_likes_u ON comment_likes(user_email)");
+    }
+
+    public static class CommentRow {
+        public int id;
+        public int writingId;
+        public int episodeId;
+        public String userEmail;
+        public String userDisplayName;
+        public String avatarUrl;     // ถ้าเก็บใน users
+        public boolean isWriter;     // author ของ writing?
+        public String text;
+        public long createdAt;
+        public boolean likedByMe;
+        public int likeCount;
+        public boolean mine;         // เป็นคอมเมนต์ของผู้ใช้เองไหม (ไว้โชว์เมนู delete)
+        public String content;
+    }
+
+    public long addComment(@Nullable String userEmail, int writingId, @Nullable Integer episodeId, @Nullable String content) {
+        // 1) resolve user
         if (userEmail == null || userEmail.trim().isEmpty()) {
             userEmail = getLoggedInUserEmail();
             if (userEmail == null || userEmail.trim().isEmpty()) userEmail = "guest";
         }
-        // บล็อกถ้าโดนแบน
+        userEmail = userEmail.trim();
+
+        // 2) block if banned
         if (!canUserWriteOrComment(userEmail)) {
             Log.e("DBHelper", "addComment blocked: user is banned");
             return -1;
         }
 
+        // 3) normalize content
         if (content == null) content = "";
+        content = content.trim();
+        if (content.isEmpty()) {
+            // ไม่อนุญาตข้อความว่าง
+            return -1;
+        }
+        // (ออปชัน) จำกัดความยาวกันหลุด schema/UX
+        final int MAX_LEN = 4000;
+        if (content.length() > MAX_LEN) {
+            content = content.substring(0, MAX_LEN);
+        }
+
+        // 4) write
         SQLiteDatabase db = getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put("user_email", userEmail);
         cv.put("writing_id", writingId);
-        if (episodeId != null) cv.put("episode_id", episodeId);
+
+        if (episodeId == null) {
+            cv.putNull("episode_id");        // ให้เป็น NULL ได้
+        } else {
+            cv.put("episode_id", episodeId);
+        }
+
+        // ❗️เลือก key ให้ตรง schema ตาราง comments ของคุณ:
+        // - ถ้าคอลัมน์ชื่อ "content" ให้ใช้บรรทัดนี้:
         cv.put("content", content);
-        cv.put("created_at", System.currentTimeMillis());
-        return db.insert(TABLE_COMMENTS, null, cv);
+        // - ถ้าคอลัมน์ในตารางจริงชื่อ "text" ให้เปลี่ยนเป็นบรรทัดนี้แทน:
+        // cv.put("text", content);
+
+        // ใช้วินาทีเพื่อให้สอดคล้อง DEFAULT (strftime('%s','now'))
+        long createdAtSec = System.currentTimeMillis() / 1000L;
+        cv.put("created_at", createdAtSec);
+
+        long rowId = db.insert(TABLE_COMMENTS, null, cv);
+        if (rowId == -1) {
+            Log.e("DBHelper", "addComment insert failed for writing_id=" + writingId);
+        }
+        return rowId;
     }
 
+
+
+    public List<CommentRow> getCommentsByEpisodeWithStats(int writingId, int episodeId) {
+        String my = getLoggedInUserEmail();
+        if (my == null) my = "";
+
+        // ถ้าคุณเก็บ avatar url ใน users.avatar_url ให้ select มาด้วย
+        String sql =
+                "SELECT c.id, c.writing_id, c.episode_id, c.user_email, c.text, c.created_at, " +
+                        "       COALESCE(u.display_name, c.user_email) AS display_name, " +
+                        "       u.avatar_url AS avatar_url, " +
+                        "       CASE WHEN w.author_email = c.user_email THEN 1 ELSE 0 END AS is_writer, " +
+                        "       (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id=c.id) AS like_count, " +
+                        "       (SELECT COUNT(*) FROM comment_likes cl2 WHERE cl2.comment_id=c.id AND cl2.user_email=?) AS liked_by_me " +
+                        "FROM comments c " +
+                        "LEFT JOIN users u ON u.email=c.user_email " +
+                        "LEFT JOIN writings w ON w.id=c.writing_id " +
+                        "WHERE c.writing_id=? AND c.episode_id=? " +
+                        "ORDER BY c.created_at ASC";
+
+        Cursor c = getReadableDatabase().rawQuery(sql, new String[]{ my, String.valueOf(writingId), String.valueOf(episodeId) });
+        List<CommentRow> out = new ArrayList<>();
+        while (c.moveToNext()) {
+            CommentRow r = new CommentRow();
+            r.id = c.getInt(0);
+            r.writingId = c.getInt(1);
+            r.episodeId = c.getInt(2);
+            r.userEmail = c.getString(3);
+            r.text = c.getString(4);
+            r.createdAt = c.getLong(5);
+            r.userDisplayName = c.getString(6);
+            r.avatarUrl = c.getString(7);
+            r.isWriter = c.getInt(8) == 1;
+            r.likeCount = c.getInt(9);
+            r.likedByMe = c.getInt(10) > 0;
+            r.mine = my.equalsIgnoreCase(r.userEmail);
+            out.add(r);
+        }
+        c.close();
+        return out;
+    }
+
+    public List<CommentRow> getCommentsByEpisode(int episodeId) {
+        Cursor c = getReadableDatabase().rawQuery(
+                "SELECT c.id, c.writing_id, c.episode_id, c.user_email, c.content, c.created_at, " + // หรือ c.text
+                        "COALESCE(u.display_name, c.user_email) AS display_name, " +
+                        "u.avatar_url, " +
+                        "0 AS is_writer " +
+                        "FROM comments c LEFT JOIN users u ON u.email=c.user_email " +
+                        "WHERE c.episode_id=? ORDER BY c.created_at ASC",
+                new String[]{ String.valueOf(episodeId) }
+        );
+        List<CommentRow> out = new ArrayList<>();
+        while (c.moveToNext()) {
+            CommentRow r = new CommentRow();
+            r.id = c.getInt(0);
+            r.writingId = c.getInt(1);
+            r.episodeId = c.isNull(2) ? null : c.getInt(2);
+            r.userEmail = c.getString(3);
+            r.content = c.getString(4); // หรือ r.text = ...
+            r.createdAt = c.getLong(5);
+            r.userDisplayName = c.getString(6);
+            r.avatarUrl = c.getString(7);
+            r.isWriter = c.getInt(8) == 1;
+            out.add(r);
+        }
+        c.close();
+        return out;
+    }
+
+
+
+    public boolean toggleCommentLike(int commentId, String userEmail, boolean like) {
+        SQLiteDatabase db = getWritableDatabase();
+        if (like) {
+            ContentValues cv = new ContentValues();
+            cv.put("comment_id", commentId);
+            cv.put("user_email", userEmail);
+            return db.insert("comment_likes", null, cv) != -1;
+        } else {
+            int n = db.delete("comment_likes", "comment_id=? AND user_email=?",
+                    new String[]{ String.valueOf(commentId), userEmail });
+            return n > 0;
+        }
+    }
+
+    public int getCommentLikeCount(int commentId) {
+        Cursor c = getReadableDatabase().rawQuery(
+                "SELECT COUNT(*) FROM comment_likes WHERE comment_id=?",
+                new String[]{ String.valueOf(commentId) });
+        int k = 0;
+        if (c.moveToFirst()) k = c.getInt(0);
+        c.close();
+        return k;
+    }
+
+    public boolean deleteCommentIfOwner(int commentId, String requesterEmail) {
+        // ลบได้เฉพาะเจ้าของคอมเมนต์
+        Cursor c = getReadableDatabase().rawQuery(
+                "SELECT user_email FROM comments WHERE id=?",
+                new String[]{ String.valueOf(commentId) });
+        String owner = null;
+        if (c.moveToFirst()) owner = c.getString(0);
+        c.close();
+        if (owner != null && owner.equalsIgnoreCase(requesterEmail)) {
+            getWritableDatabase().delete("comment_likes", "comment_id=?", new String[]{ String.valueOf(commentId) });
+            return getWritableDatabase().delete("comments", "id=?", new String[]{ String.valueOf(commentId) }) > 0;
+        }
+        return false;
+    }
     /** นับคอมเมนต์ของเรื่อง (ใช้โชว์ที่ Book Detail) */
     public int countCommentsForWriting(int writingId) {
         SQLiteDatabase db = getReadableDatabase();
@@ -1243,6 +1477,8 @@ public class DBHelper extends SQLiteOpenHelper {
         }
         return out;
     }
+
+
 
     public long reportComment(int commentId, @Nullable String reporterEmail, @Nullable String reason) {
         ContentValues cv = new ContentValues();
