@@ -1,7 +1,9 @@
 package com.example.storysphere_appbar;
 
-import android.content.ContentValues;
 import android.content.Context;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
+import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
@@ -39,8 +41,12 @@ public class DBHelper extends SQLiteOpenHelper {
     public static final String COL_BAN_REASON = "ban_reason";
     private static final int DATABASE_VERSION = 25;
 
+    private final Context appContext;
 
-    public DBHelper(Context context) { super(context, DATABASE_NAME, null, DATABASE_VERSION); }
+    public DBHelper(Context context) {
+        super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        this.appContext = context.getApplicationContext(); // เก็บ context ที่ใช้ได้เสมอ
+    }
 
     @Override
     public void onConfigure(SQLiteDatabase db) {
@@ -147,18 +153,19 @@ public class DBHelper extends SQLiteOpenHelper {
 
 
             // notifications
+
             db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_NOTIFICATIONS + " (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT," +
-                    "user_email TEXT NOT NULL," +     // ผู้รับ
-                    "type TEXT NOT NULL," +           // FOLLOW / NEW_EPISODE / SYSTEM
+                    "user_email TEXT NOT NULL," +                 // ผู้รับแจ้งเตือน
+                    "type TEXT," +                                // FOLLOW / LIKE / COMMENT / BOOKMARK / REPORT ...
                     "title TEXT," +
                     "message TEXT," +
-                    "payload_json TEXT," +
-                    "created_at INTEGER NOT NULL," +
-                    "read_at INTEGER" +
+                    "payload TEXT," +                             // ใส่ JSON ไว้ deeplink หรือข้อมูลเสริม
+                    "is_read INTEGER NOT NULL DEFAULT 0," +
+                    "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))" +
                     ")");
-            db.execSQL("CREATE INDEX IF NOT EXISTS idx_notif_user_time ON " + TABLE_NOTIFICATIONS + "(user_email, created_at DESC)");
-
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_notif_user_time ON " + TABLE_NOTIFICATIONS + " (user_email, created_at DESC)");
+            db.execSQL("CREATE INDEX IF NOT EXISTS idx_notif_user_unread ON " + TABLE_NOTIFICATIONS + " (user_email, is_read)");
             db.setTransactionSuccessful();
         } finally { db.endTransaction(); }
     }
@@ -1537,7 +1544,7 @@ public class DBHelper extends SQLiteOpenHelper {
             cv.put("created_at",     System.currentTimeMillis());
             long id = db.insertWithOnConflict(TABLE_FOLLOWS, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
 
-            // แจ้งผู้เขียนว่ามีคนติดตาม (ถ้า insert สำเร็จ)
+            // แจ้งผู้เขียนเมื่อมี follower ใหม่
             if (id != -1) {
                 String followerName = getUsernameByEmail(followerEmail);
                 enqueueNotification(
@@ -1565,58 +1572,163 @@ public class DBHelper extends SQLiteOpenHelper {
         return list;
     }
     // ======================== NOTIFICATIONS ========================
-    public long enqueueNotification(String toEmail, String type, @Nullable String title, @Nullable String message, @Nullable String payloadJson) {
-        if (toEmail == null || toEmail.trim().isEmpty()) return -1;
+// ---- Broadcast action ให้ UI รีเฟรชเมื่อมีการเปลี่ยนแปลงแจ้งเตือน ----
+    public static final String ACTION_NOTIFICATIONS_CHANGED = "com.example.storysphere.NOTIFICATIONS_CHANGED";
+
+    // โมเดลแสดงผล
+    public class NotificationItem {
+        public long id;
+        public String type;      // FOLLOW / LIKE / COMMENT / NEW_EPISODE / ...
+        public String title;
+        public String message;
+        public String payload;   // JSON
+        public boolean isRead;
+        public long createdAt;
+    }
+// ใช้ฟิลด์นี้อยู่แล้วในคลาส:
+// private final Context appContext;
+// public DBHelper(Context ctx) { ... this.appContext = ctx.getApplicationContext(); }
+
+    // ===== สร้างแจ้งเตือน (เหลือตัวเดียว) =====
+    public long enqueueNotification(String userEmail,
+                                    String type,
+                                    @Nullable String title,
+                                    @Nullable String message,
+                                    @Nullable String payloadJson) {
+        if (userEmail == null || userEmail.trim().isEmpty()) return -1;
+
         ContentValues cv = new ContentValues();
-        cv.put("user_email", toEmail.trim());
+        cv.put("user_email", userEmail.trim());
         cv.put("type", type != null ? type : "SYSTEM");
-        if (title != null)   cv.put("title", title);
-        if (message != null) cv.put("message", message);
-        if (payloadJson != null) cv.put("payload_json", payloadJson);
+        if (title != null)      cv.put("title", title);
+        if (message != null)    cv.put("message", message);
+        if (payloadJson != null)cv.put("payload", payloadJson); // ใช้คอลัมน์ 'payload'
+        cv.put("is_read", 0);
         cv.put("created_at", System.currentTimeMillis());
-        return getWritableDatabase().insert(TABLE_NOTIFICATIONS, null, cv);
+
+        long id = getWritableDatabase().insert(TABLE_NOTIFICATIONS, null, cv);
+
+        // ⬅️ ใช้ appContext (android.content.Context) เสมอ
+        try {
+            android.content.Intent i = new android.content.Intent(ACTION_NOTIFICATIONS_CHANGED);
+            LocalBroadcastManager.getInstance(appContext).sendBroadcast(i);
+        } catch (Exception ignore) {}
+
+        return id;
     }
 
-    public List<Notification> getUnreadNotifications(String userEmail) {
-        ArrayList<Notification> list = new ArrayList<>();
+    public List<NotificationItem> getNotifications(String userEmail, int limit) {
+        ArrayList<NotificationItem> list = new ArrayList<>();
         if (userEmail == null || userEmail.trim().isEmpty()) return list;
-        try (Cursor c = getReadableDatabase().rawQuery(
-                "SELECT id, user_email, type, title, message, payload_json, created_at, read_at " +
-                        "FROM " + TABLE_NOTIFICATIONS + " WHERE user_email=? AND read_at IS NULL " +
-                        "ORDER BY created_at DESC",
-                new String[]{ userEmail })) {
+
+        String sql = "SELECT id, type, title, message, payload, is_read, created_at " +
+                "FROM " + TABLE_NOTIFICATIONS +
+                " WHERE user_email=? ORDER BY created_at DESC" +
+                (limit > 0 ? " LIMIT " + limit : "");
+        try (Cursor c = getReadableDatabase().rawQuery(sql, new String[]{ userEmail.trim() })) {
             while (c.moveToNext()) {
-                Notification n = new Notification();
-                n.id = c.getInt(0);
-                n.userEmail = c.getString(1);
-                n.type = c.getString(2);
-                n.title = c.isNull(3) ? null : c.getString(3);
-                n.message = c.isNull(4) ? null : c.getString(4);
-                n.payloadJson = c.isNull(5) ? null : c.getString(5);
-                n.createdAt = c.getLong(6);
-                n.readAt = c.isNull(7) ? null : c.getLong(7);
-                list.add(n);
+                NotificationItem it = new NotificationItem();
+                it.id = c.getLong(0);
+                it.type = c.getString(1);
+                it.title = c.getString(2);
+                it.message = c.getString(3);
+                it.payload = c.getString(4);
+                it.isRead = c.getInt(5) == 1;
+                it.createdAt = c.getLong(6);
+                list.add(it);
             }
         }
         return list;
     }
 
-    public boolean markNotificationRead(int notifId) {
-        ContentValues cv = new ContentValues();
-        cv.put("read_at", System.currentTimeMillis());
-        return getWritableDatabase().update(TABLE_NOTIFICATIONS, cv, "id=?", new String[]{ String.valueOf(notifId) }) > 0;
+    // ===== นับที่ยังไม่อ่าน =====
+    public int getUnreadNotificationCount(String userEmail) {
+        if (userEmail == null || userEmail.trim().isEmpty()) return 0;
+        try (Cursor c = getReadableDatabase().rawQuery(
+                "SELECT COUNT(*) FROM " + TABLE_NOTIFICATIONS + " WHERE user_email=? AND is_read=0",
+                new String[]{ userEmail.trim() })) {
+            if (c.moveToFirst()) return c.getInt(0);
+        }
+        return 0;
     }
 
+    // ===== อ่านแล้ว (1 แถว) =====
+    public boolean markNotificationRead(long id) {
+        ContentValues cv = new ContentValues();
+        cv.put("is_read", 1);
+        boolean ok = getWritableDatabase().update(
+                TABLE_NOTIFICATIONS, cv, "id=?", new String[]{ String.valueOf(id) }) > 0;
+
+        if (ok) {
+            try {
+                android.content.Intent i = new android.content.Intent(ACTION_NOTIFICATIONS_CHANGED);
+                LocalBroadcastManager.getInstance(appContext).sendBroadcast(i);
+            } catch (Exception ignore) {}
+        }
+        return ok;
+    }
+
+    // ===== อ่านแล้วทั้งหมดของผู้ใช้ =====
+    public int markAllNotificationsRead(String userEmail) {
+        if (userEmail == null || userEmail.trim().isEmpty()) return 0;
+        ContentValues cv = new ContentValues();
+        cv.put("is_read", 1);
+        int n = getWritableDatabase().update(
+                TABLE_NOTIFICATIONS, cv, "user_email=? AND is_read=0",
+                new String[]{ userEmail.trim() });
+
+        if (n > 0) {
+            try {
+                android.content.Intent i = new android.content.Intent(ACTION_NOTIFICATIONS_CHANGED);
+                LocalBroadcastManager.getInstance(appContext).sendBroadcast(i);
+            } catch (Exception ignore) {}
+        }
+        return n;
+    }
+
+    // ===== ลบแจ้งเตือน =====
+    public boolean deleteNotification(long id) {
+        boolean ok = getWritableDatabase().delete(
+                TABLE_NOTIFICATIONS, "id=?", new String[]{ String.valueOf(id) }) > 0;
+
+        if (ok) {
+            try {
+                android.content.Intent i = new android.content.Intent(ACTION_NOTIFICATIONS_CHANGED);
+                LocalBroadcastManager.getInstance(appContext).sendBroadcast(i);
+            } catch (Exception ignore) {}
+        }
+        return ok;
+    }
     // ======================== EPISODES ========================
+    private void notifyFollowersNewEpisode(int writingId, String authorEmail, int episodeNo) {
+        String wTitle = getWritingTitle(writingId);
+        String authorName = getUsernameByEmail(authorEmail);
+        String title = "New episode: " + (wTitle != null ? wTitle : "New update");
+        String message = "There's a new episode from " + (authorName != null ? authorName : authorEmail);
+
+        List<String> rawFollowers = getFollowersEmails(authorEmail);
+        java.util.HashSet<String> followers = new java.util.HashSet<>();
+        if (rawFollowers != null) followers.addAll(rawFollowers);
+        followers.remove(authorEmail); // ไม่แจ้งตัวเอง
+
+        org.json.JSONObject payload = new org.json.JSONObject();
+        try {
+            payload.put("writingId", writingId);
+            payload.put("episodeNo", episodeNo);
+            payload.put("authorEmail", authorEmail);
+            if (wTitle != null) payload.put("writingTitle", wTitle);
+        } catch (org.json.JSONException ignore) {}
+
+        for (String follower : followers) {
+            enqueueNotification(follower, "NEW_EPISODE", title, message, payload.toString());
+        }
+    }
+
     public boolean insertEpisode(int writingId, String title, String html, boolean isPrivate) {
         if (!writingExists(writingId)) return false;
 
-        // ตรวจคนเขียนถูกแบน?
         String authorEmail = getAuthorEmailForWriting(writingId);
-        if (authorEmail == null || !canUserWriteOrComment(authorEmail)) {
-            Log.e("DBHelper", "insertEpisode blocked: author banned or unknown");
-            return false;
-        }
+        if (authorEmail == null || !canUserWriteOrComment(authorEmail)) return false;
 
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues cv = new ContentValues();
@@ -1635,22 +1747,14 @@ public class DBHelper extends SQLiteOpenHelper {
         cv.put("updated_at_text", nowText);
 
         boolean ok;
-        try { ok = db.insertOrThrow(TABLE_EPISODES, null, cv) != -1; }
-        catch (Exception e) { Log.e("DBHelper", "insertEpisode failed", e); return false; }
+        try {
+            ok = db.insertOrThrow(TABLE_EPISODES, null, cv) != -1;
+        } catch (Exception e) {
+            return false;
+        }
 
-        // แจ้งเตือนผู้ติดตาม (เฉพาะ public)
         if (ok && !isPrivate) {
-            List<String> followers = getFollowersEmails(authorEmail);
-            String wTitle = getWritingTitle(writingId);
-            for (String follower : followers) {
-                enqueueNotification(
-                        follower,
-                        "NEW_EPISODE",
-                        "New episode: " + (wTitle != null ? wTitle : "New update"),
-                        "There's a new episode from " + (getUsernameByEmail(authorEmail) != null ? getUsernameByEmail(authorEmail) : authorEmail),
-                        "{\"writingId\":" + writingId + ",\"episodeNo\":" + nextNo + "}"
-                );
-            }
+            notifyFollowersNewEpisode(writingId, authorEmail, nextNo);
         }
         return ok;
     }
