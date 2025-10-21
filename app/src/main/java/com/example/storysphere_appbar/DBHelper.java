@@ -194,7 +194,6 @@ public class DBHelper extends SQLiteOpenHelper {
             safeAddColumn(db, TABLE_WRITINGS, "author_email", "TEXT");
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_writings_author_email ON " + TABLE_WRITINGS + "(author_email)");
         }
-
         if (oldVersion < 24) {
             db.execSQL("CREATE TABLE IF NOT EXISTS " + TABLE_BANNERS + " (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -204,8 +203,6 @@ public class DBHelper extends SQLiteOpenHelper {
                     "is_active INTEGER NOT NULL DEFAULT 1," +
                     "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))" +
                     ")");
-
-
         }
 
         // likes log & comments (safety)
@@ -1851,9 +1848,4 @@ public class DBHelper extends SQLiteOpenHelper {
         return getWritableDatabase().update(TABLE_REPORTS, cv, "id=?",
                 new String[]{ String.valueOf(reportId) }) > 0;
     }
-
-
-
-
-
 }
