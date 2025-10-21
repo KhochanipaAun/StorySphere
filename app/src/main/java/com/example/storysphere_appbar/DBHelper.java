@@ -37,9 +37,6 @@ public class DBHelper extends SQLiteOpenHelper {
     // users new columns
     public static final String COL_IS_BANNED = "is_banned";
     public static final String COL_BAN_REASON = "ban_reason";
-
-
-
     private static final int DATABASE_VERSION = 25;
 
 
@@ -2084,4 +2081,53 @@ public class DBHelper extends SQLiteOpenHelper {
         return getWritableDatabase().update(TABLE_REPORTS, cv, "id=?",
                 new String[]{ String.valueOf(reportId) }) > 0;
     }
+
+    public boolean setUserBanned(String email, boolean banned) {
+        android.content.ContentValues cv = new android.content.ContentValues();
+        cv.put("is_banned", banned ? 1 : 0);
+        return getWritableDatabase().update(TABLE_USERS, cv, "email=?", new String[]{ email }) > 0;
+    }
+
+    // เพิ่มใน DBHelper.java
+    public long addReport(int commentId, String reason, String reporterEmail, int writingId) {
+        ContentValues cv = new ContentValues();
+        cv.put("comment_id", commentId);
+        cv.put("reason", reason);
+        cv.put("reporter_email", reporterEmail);
+        cv.put("writing_id", writingId);
+        cv.put("status", "OPEN");
+        cv.put("created_at", System.currentTimeMillis() / 1000L);
+        return getWritableDatabase().insert(TABLE_REPORTS, null, cv);
+    }
+
+    // กันรีพอร์ตซ้ำ: ถ้ามี OPEN อยู่แล้ว จากคนเดิม ต่อคอมเมนต์เดิม จะไม่บันทึกซ้ำ
+    public long addReportIfNotExists(int commentId, String reason, String reporterEmail, int writingId) {
+        if (reporterEmail == null) reporterEmail = "";
+        String sqlCheck =
+                "SELECT id FROM " + TABLE_REPORTS +
+                        " WHERE status='OPEN' AND comment_id=? AND reporter_email=?";
+        android.database.Cursor cur = null;
+        try {
+            cur = getReadableDatabase().rawQuery(sqlCheck,
+                    new String[]{ String.valueOf(commentId), reporterEmail });
+            if (cur != null && cur.moveToFirst()) {
+                // มีรายการ OPEN อยู่แล้ว
+                return -2; // ใช้โค้ดพิเศษสื่อว่า "มีอยู่แล้ว"
+            }
+        } finally {
+            if (cur != null) cur.close();
+        }
+
+        android.content.ContentValues cv = new android.content.ContentValues();
+        cv.put("comment_id", commentId);
+        cv.put("reason", reason);
+        cv.put("reporter_email", reporterEmail);
+        cv.put("writing_id", writingId);
+        cv.put("status", "OPEN");
+        cv.put("created_at", System.currentTimeMillis() / 1000L);
+        return getWritableDatabase().insert(TABLE_REPORTS, null, cv);
+    }
+
+
+
 }

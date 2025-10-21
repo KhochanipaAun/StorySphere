@@ -150,8 +150,30 @@ public class activity_episode extends AppCompatActivity {
                     }
                 }
                 @Override public void onReport(CommentAdapter.Comment c) {
-                    Toast.makeText(activity_episode.this, "Reported", Toast.LENGTH_SHORT).show();
+                    String me = db.getLoggedInUserEmail();
+                    if (me == null || me.isEmpty()) {
+                        Toast.makeText(activity_episode.this, "ต้องล็อกอินก่อนรายงาน", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    String reason = "Inappropriate";
+
+                    long rowId = db.addReportIfNotExists(c.id, reason, me, writingId);
+                    if (rowId > 0) {
+                        Toast.makeText(activity_episode.this, "ส่งรีพอร์ตแล้ว", Toast.LENGTH_SHORT).show();
+
+                        // 🔔 แจ้งให้หน้าแอดมินรีเฟรช (ถ้าเปิดอยู่)
+                        LocalBroadcastManager.getInstance(activity_episode.this).sendBroadcast(
+                                new Intent(AdminReportsActivity.ACTION_REPORTS_CHANGED)
+                        );
+
+                    } else if (rowId == -2) {
+                        Toast.makeText(activity_episode.this, "คุณรายงานคอมเมนต์นี้ไว้แล้ว", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(activity_episode.this, "ส่งรีพอร์ตไม่สำเร็จ", Toast.LENGTH_SHORT).show();
+                    }
                 }
+
+
                 @Override public void onDelete(CommentAdapter.Comment c) {
                     String me = db.getLoggedInUserEmail();
                     if (me == null || me.isEmpty()) return;
